@@ -1,3 +1,5 @@
+// src/types/index.ts - Обновленный файл с импортом типов для системы заявок
+
 export enum UserRole {
   ADMIN = "ADMIN",
   ORGANIZER = "ORGANIZER",
@@ -169,6 +171,9 @@ export interface EventWithDetails extends Event {
   isUserFavorite?: boolean;
   registrationCount?: number;
 }
+
+// Импортируем типы для системы заявок
+export * from "./maintenance";
 
 // Utility functions
 export const getRoleLabel = (role: UserRole): string => {
