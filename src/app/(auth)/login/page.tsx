@@ -3,9 +3,9 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useAuth } from "@/hooks/useAuth";
 import { UserRole } from "@/types";
 import { toast } from "react-toastify";
+import { useLogin, useCurrentUser } from "@/services/authService";
 import {
   CheckCircle,
   Clock,
@@ -56,77 +56,123 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
-  const { login, error, clearError, loading, user } = useAuth();
   const router = useRouter();
+  const { data: currentUser, isLoading: isCheckingUser } = useCurrentUser();
+  const loginMutation = useLogin();
 
+  // Проверяем, авторизован ли уже пользователь при загрузке
   useEffect(() => {
-    if (user && user.isActive) {
+    if (
+      currentUser &&
+      typeof currentUser === "object" &&
+      "id" in currentUser &&
+      "name" in currentUser &&
+      !isCheckingUser
+    ) {
+      setIsRedirecting(true);
+      toast.success(`Добро пожаловать, ${currentUser.name}!`, {
+        position: "top-right",
+        autoClose: 3000,
+      });
+
+      setTimeout(() => {
+        redirectByRole(currentUser.role);
+      }, 100);
+    }
+  }, [currentUser, isCheckingUser, router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsRedirecting(false);
+
+    console.log("Попытка входа с данными:", { email, password: "***" });
+
+    try {
+      const user = await loginMutation.mutateAsync({ email, password });
+
+      console.log("Успешный логин, пользователь:", user);
+
+      setIsRedirecting(true);
       toast.success(`Добро пожаловать, ${user.name}!`, {
         position: "top-right",
         autoClose: 3000,
       });
-      redirectByRole(user.role);
-    }
-  }, [user, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage("");
-    clearError();
-
-    try {
-      await login(email, password);
+      // Небольшая задержка для обновления состояния
+      setTimeout(() => {
+        window.location.href = getRedirectUrl(user.role);
+      }, 500);
     } catch (error: any) {
+      console.error("Ошибка при входе:", error);
+      setIsRedirecting(false);
+
       const message = error?.message || "Ошибка при входе";
 
-      if (
-        message.includes("не активирован") ||
-        message.includes("not activated")
-      ) {
-        setErrorMessage(
-          "⚠️ Ваш аккаунт еще не активирован администратором. Попробуйте позже или обратитесь к администратору."
-        );
-      } else if (message.includes("Неверный") || message.includes("Invalid")) {
-        setErrorMessage(
-          "❌ Неверный email или пароль. Проверьте правильность введенных данных."
+      if (message.includes("активации")) {
+        toast.error(
+          "⚠️ Ваш аккаунт еще не активирован администратором. Попробуйте позже или обратитесь к администратору.",
+          { position: "top-center", autoClose: 6000 }
         );
       } else if (
-        message.includes("заблокирован") ||
-        message.includes("blocked")
+        message.includes("Invalid credentials") ||
+        message.includes("Неверный")
       ) {
-        setErrorMessage(
-          "🚫 Ваш аккаунт заблокирован. Обратитесь к администратору системы."
-        );
-      } else if (
-        message.includes("не найден") ||
-        message.includes("not found")
-      ) {
-        setErrorMessage(
-          "📧 Пользователь с таким email не найден. Проверьте email или зарегистрируйтесь."
+        toast.error(
+          "❌ Неверный email или пароль. Проверьте правильность введенных данных.",
+          { position: "top-center", autoClose: 5000 }
         );
       } else {
-        setErrorMessage(`Ошибка входа: ${message}`);
+        toast.error(`Ошибка входа: ${message}`, {
+          position: "top-center",
+          autoClose: 5000,
+        });
       }
     }
   };
 
-  const redirectByRole = (role: UserRole) => {
+  const getRedirectUrl = (role: UserRole): string => {
     switch (role) {
       case UserRole.ADMIN:
-        router.push("/admin");
-        break;
+        return "/admin";
       case UserRole.ORGANIZER:
-        router.push("/organizer");
-        break;
+        return "/organizer";
       case UserRole.USER:
-        router.push("/");
-        break;
+        return "/";
       default:
-        router.push("/");
+        return "/";
     }
   };
+
+  const redirectByRole = (role: UserRole) => {
+    const url = getRedirectUrl(role);
+    router.push(url);
+  };
+
+  // Показываем загрузку если идет перенаправление или проверка пользователя
+  if (isRedirecting || isCheckingUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-gray-100">
+          <div className="text-center">
+            <div className="text-4xl mb-4">🎉</div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              {isCheckingUser
+                ? "Проверка авторизации..."
+                : "Перенаправление..."}
+            </h1>
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-gray-600">
+                {isCheckingUser ? "Проверяем данные..." : "Входим в систему..."}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -142,36 +188,20 @@ function LoginForm() {
         </div>
 
         <form className="space-y-6" onSubmit={handleSubmit}>
-          {(error || errorMessage) && (
-            <div
-              className={`p-4 border rounded-lg ${
-                (errorMessage || error)?.includes("не активирован") ||
-                (errorMessage || error)?.includes("not activated")
-                  ? "text-amber-700 bg-amber-50 border-amber-200"
-                  : (errorMessage || error)?.includes("заблокирован") ||
-                    (errorMessage || error)?.includes("blocked")
-                  ? "text-red-700 bg-red-50 border-red-200"
-                  : (errorMessage || error)?.includes("не найден") ||
-                    (errorMessage || error)?.includes("not found")
-                  ? "text-blue-700 bg-blue-50 border-blue-200"
-                  : "text-red-700 bg-red-50 border-red-200"
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                {(errorMessage || error)?.includes("не активирован") ||
-                (errorMessage || error)?.includes("not activated") ? (
-                  <Clock className="h-4 w-4 flex-shrink-0" />
-                ) : (errorMessage || error)?.includes("заблокирован") ||
-                  (errorMessage || error)?.includes("blocked") ? (
-                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                ) : (errorMessage || error)?.includes("не найден") ||
-                  (errorMessage || error)?.includes("not found") ? (
-                  <Info className="h-4 w-4 flex-shrink-0" />
-                ) : (
-                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                )}
-                <span className="text-sm">{errorMessage || error}</span>
-              </div>
+          {process.env.NODE_ENV === "development" && (
+            <div className="text-xs text-gray-500 p-2 bg-gray-50 rounded">
+              Debug:{" "}
+              {JSON.stringify({
+                email,
+                hasPassword: !!password,
+                isLoading: loginMutation.isPending,
+                currentUser:
+                  currentUser &&
+                  typeof currentUser === "object" &&
+                  "id" in currentUser
+                    ? "authorized"
+                    : "not authorized",
+              })}
             </div>
           )}
 
@@ -188,7 +218,8 @@ function LoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+              disabled={loginMutation.isPending || isRedirecting}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               placeholder="your@email.com"
             />
           </div>
@@ -207,13 +238,15 @@ function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                disabled={loginMutation.isPending || isRedirecting}
+                className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="••••••••"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                disabled={loginMutation.isPending || isRedirecting}
+                className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {showPassword ? (
                   <EyeOff className="h-4 w-4" />
@@ -226,13 +259,13 @@ function LoginForm() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loginMutation.isPending || isRedirecting}
             className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
           >
-            {loading ? (
+            {loginMutation.isPending || isRedirecting ? (
               <div className="flex items-center justify-center gap-2">
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Вход...
+                {isRedirecting ? "Перенаправление..." : "Вход..."}
               </div>
             ) : (
               "Войти"

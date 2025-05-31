@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ToastContainer } from "react-toastify";
@@ -28,23 +28,36 @@ export function Providers({ children }: { children: React.ReactNode }) {
       })
   );
 
+  // Состояние для отслеживания клиентской гидратации
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       {children}
-      {process.env.NODE_ENV === "development" && <ReactQueryDevtools />}
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="light"
-        className="mt-16"
-      />
+      {/* Показываем девтулы только после гидратации */}
+      {hasMounted && process.env.NODE_ENV === "development" && (
+        <ReactQueryDevtools />
+      )}
+      {/* ToastContainer тоже только после гидратации */}
+      {hasMounted && (
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop={false}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="light"
+          className="mt-16"
+        />
+      )}
     </QueryClientProvider>
   );
 }

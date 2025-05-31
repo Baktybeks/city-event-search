@@ -1,151 +1,80 @@
-import { useAuthStore } from "@/store/authStore";
+// hooks/useAuth.ts
 import {
   useCurrentUser,
-  useLogin,
-  useLogout,
-  useRegister,
+  useLogin as useAppwriteLogin,
+  useLogout as useAppwriteLogout,
 } from "@/services/authService";
-import { UserRole } from "@/types";
-import { useEffect } from "react";
-import { toast } from "react-toastify";
+import { UserRole, User } from "@/types";
+
+// Типы для проверки пользователя
+type AuthenticatedUser = User & { id: string; name: string; role: UserRole };
+type NotActivatedUser = { notActivated: true };
+type UserResult = AuthenticatedUser | NotActivatedUser | null;
+
+// Type guards для проверки типов
+function isAuthenticatedUser(user: any): user is AuthenticatedUser {
+  return (
+    user &&
+    typeof user === "object" &&
+    "id" in user &&
+    "name" in user &&
+    "role" in user &&
+    !("notActivated" in user)
+  );
+}
+
+function isNotActivatedUser(user: any): user is NotActivatedUser {
+  return user && typeof user === "object" && "notActivated" in user;
+}
 
 export function useAuth() {
-  const { user, setUser, clearUser } = useAuthStore();
+  const { data: user, isLoading, error, refetch } = useCurrentUser();
+  const loginMutation = useAppwriteLogin();
+  const logoutMutation = useAppwriteLogout();
 
-  // React Query хуки
-  const {
-    data: currentUser,
-    isLoading: isCheckingAuth,
-    error: authError,
-  } = useCurrentUser();
-  const loginMutation = useLogin();
-  const logoutMutation = useLogout();
-  const registerMutation = useRegister();
+  // Определяем тип пользователя
+  const isActiveUser = isAuthenticatedUser(user);
+  const isNotActivated = isNotActivatedUser(user);
 
-  // Синхронизируем состояние Zustand с React Query
-  useEffect(() => {
-    if (currentUser && !("notActivated" in currentUser)) {
-      setUser(currentUser);
-    } else {
-      clearUser();
-    }
-  }, [currentUser, setUser, clearUser]);
-
-  // Функции для компонентов
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<User> => {
     try {
-      const user = await loginMutation.mutateAsync({ email, password });
-      setUser(user);
-      return user;
+      const result = await loginMutation.mutateAsync({ email, password });
+      return result;
     } catch (error) {
-      clearUser();
       throw error;
     }
   };
 
-  const logout = async () => {
+  const logout = async (): Promise<void> => {
     try {
       await logoutMutation.mutateAsync();
-      clearUser();
-      toast.info("👋 Вы успешно вышли из системы", {
-        position: "top-right",
-        autoClose: 3000,
-      });
     } catch (error) {
-      // Даже если запрос не удался, очищаем локальное состояние
-      clearUser();
-      toast.warning("⚠️ Произошла ошибка при выходе, но сессия очищена", {
-        position: "top-right",
-        autoClose: 4000,
-      });
-      throw error;
-    }
-  };
-
-  const register = async (
-    name: string,
-    email: string,
-    password: string,
-    role: UserRole
-  ) => {
-    try {
-      const result = await registerMutation.mutateAsync({
-        name,
-        email,
-        password,
-        role,
-      });
-      return result;
-    } catch (error: any) {
-      const message = error?.message || "Неизвестная ошибка при регистрации";
-
-      if (
-        message.includes("уже существует") ||
-        message.includes("already exists")
-      ) {
-        toast.error("📧 Пользователь с таким email уже зарегистрирован", {
-          position: "top-center",
-          autoClose: 5000,
-        });
-      } else if (message.includes("пароль") || message.includes("password")) {
-        toast.error("🔒 Ошибка с паролем. Проверьте требования к паролю", {
-          position: "top-center",
-          autoClose: 5000,
-        });
-      } else if (message.includes("email") || message.includes("Email")) {
-        toast.error("📧 Некорректный формат email адреса", {
-          position: "top-center",
-          autoClose: 5000,
-        });
-      } else {
-        toast.error(`❌ Ошибка регистрации: ${message}`, {
-          position: "top-center",
-          autoClose: 5000,
-        });
-      }
-
+      console.error("Ошибка при выходе:", error);
       throw error;
     }
   };
 
   const clearError = () => {
-    // Можно добавить логику очистки ошибок если нужно
+    // React Query автоматически управляет ошибками
+    // Можно добавить дополнительную логику при необходимости
   };
 
-  // Показываем toast при ошибках аутентификации
-  useEffect(() => {
-    if (authError) {
-      toast.error("🔐 Ошибка аутентификации. Пожалуйста, войдите заново", {
-        position: "top-center",
-        autoClose: 5000,
-      });
-    }
-  }, [authError]);
+  const checkAuthState = () => {
+    refetch();
+  };
 
   return {
-    // Состояние
-    user,
-    loading:
-      isCheckingAuth ||
-      loginMutation.isPending ||
-      logoutMutation.isPending ||
-      registerMutation.isPending,
+    user: isActiveUser ? user : null,
+    loading: isLoading || loginMutation.isPending || logoutMutation.isPending,
     error:
-      authError?.message ||
+      error?.message ||
       loginMutation.error?.message ||
       logoutMutation.error?.message ||
-      registerMutation.error?.message ||
       null,
-
-    // Действия
+    isNotActivated: isNotActivated,
     login,
     logout,
-    register,
     clearError,
-
-    // Статусы мутаций
-    isLoggingIn: loginMutation.isPending,
-    isLoggingOut: logoutMutation.isPending,
-    isRegistering: registerMutation.isPending,
+    checkAuthState,
   };
 }
