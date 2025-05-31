@@ -1,6 +1,6 @@
+// src/middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { UserRole } from "@/types";
 
 export function middleware(request: NextRequest) {
   // Получаем Appwrite session cookie
@@ -14,8 +14,7 @@ export function middleware(request: NextRequest) {
 
   // Публичные страницы - логин и регистрация
   if (path.startsWith("/login") || path.startsWith("/register")) {
-    // Если есть сессия, можно попробовать перенаправить на главную
-    // Но лучше оставить это на клиентской стороне, так как нужно проверить активность пользователя
+    // Просто пропускаем - проверку авторизации делаем на клиенте
     return NextResponse.next();
   }
 
@@ -30,15 +29,26 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Все остальные маршруты требуют авторизации
-  if (!hasSession) {
+  // Админские, организаторские и пользовательские маршруты
+  const protectedRoutes = [
+    "/admin",
+    "/organizer",
+    "/profile",
+    "/favorites",
+    "/my-events",
+  ];
+  const isProtectedRoute = protectedRoutes.some((route) =>
+    path.startsWith(route)
+  );
+
+  if (isProtectedRoute && !hasSession) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", path);
+    console.log("Перенаправляем на логин с redirect:", path);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Если есть сессия, пропускаем запрос
-  // Детальная проверка ролей будет происходить на клиентской стороне
+  // Если есть сессия или маршрут не защищен, пропускаем запрос
   return NextResponse.next();
 }
 

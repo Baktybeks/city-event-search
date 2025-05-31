@@ -2,6 +2,7 @@ import { appwriteConfig } from "@/constants/appwriteConfig";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Client, Account, ID, Databases, Query } from "appwrite";
 import { User, UserRole } from "@/types";
+import React from "react"; // Добавляем импорт React
 
 const {
   projectId: PROJECT_ID,
@@ -19,44 +20,79 @@ const database = new Databases(client);
 export const authApi = {
   getCurrentUser: async (): Promise<User | null | { notActivated: true }> => {
     try {
-      console.log("Получаем текущую сессию пользователя...");
+      console.log("🔍 getCurrentUser: Начинаем проверку пользователя...");
+
+      // Проверяем конфигурацию
+      if (!ENDPOINT || !PROJECT_ID || !DATABASE_ID) {
+        console.error("❌ getCurrentUser: Отсутствуют переменные окружения:", {
+          ENDPOINT,
+          PROJECT_ID,
+          DATABASE_ID,
+        });
+        return null;
+      }
+
       let session;
       try {
+        console.log("🔍 getCurrentUser: Пытаемся получить сессию...");
         session = await account.get();
+        console.log("✅ getCurrentUser: Сессия найдена:", session.email);
       } catch (err: any) {
+        console.log(
+          "❌ getCurrentUser: Ошибка получения сессии:",
+          err.code,
+          err.message
+        );
         if (err.code === 401) {
-          console.log("Пользователь не авторизован (гость)");
+          console.log("❌ getCurrentUser: Пользователь не авторизован (401)");
           return null;
         }
-        throw err;
+        console.error(
+          "❌ getCurrentUser: Неожиданная ошибка при получении сессии:",
+          err
+        );
+        return null; // Возвращаем null вместо выброса ошибки
       }
 
       if (!session) {
-        console.log("Сессия не найдена");
+        console.log("❌ getCurrentUser: Сессия не найдена");
         return null;
       }
 
-      const users = await database.listDocuments(
-        DATABASE_ID,
-        collections.users,
-        [Query.equal("email", session.email)]
-      );
+      console.log("🔍 getCurrentUser: Ищем пользователя в БД:", session.email);
+      try {
+        const users = await database.listDocuments(
+          DATABASE_ID,
+          collections.users,
+          [Query.equal("email", session.email)]
+        );
 
-      if (users.documents.length === 0) {
-        console.log("Информация о пользователе не найдена в базе данных");
+        if (users.documents.length === 0) {
+          console.log("❌ getCurrentUser: Пользователь не найден в БД");
+          return null;
+        }
+
+        const userData = users.documents[0];
+        console.log("✅ getCurrentUser: Пользователь найден:", {
+          name: userData.name,
+          email: userData.email,
+          role: userData.role,
+          isActive: userData.isActive,
+        });
+
+        if (!userData.isActive && userData.role !== UserRole.ADMIN) {
+          console.log("⚠️ getCurrentUser: Пользователь не активирован");
+          return { notActivated: true };
+        }
+
+        console.log("✅ getCurrentUser: Возвращаем активного пользователя");
+        return userData as unknown as User;
+      } catch (dbError: any) {
+        console.error("❌ getCurrentUser: Ошибка запроса к БД:", dbError);
         return null;
       }
-
-      const userData = users.documents[0];
-      if (!userData.isActive && userData.role !== UserRole.ADMIN) {
-        console.log("Пользователь не активирован");
-        return { notActivated: true };
-      }
-
-      console.log("Пользователь найден:", userData.name);
-      return userData as unknown as User;
     } catch (error) {
-      console.error("Ошибка при получении текущего пользователя:", error);
+      console.error("❌ getCurrentUser: Критическая ошибка:", error);
       return null;
     }
   },
@@ -213,11 +249,44 @@ export const authKeys = {
 
 // React Query хуки
 export const useCurrentUser = () => {
-  return useQuery<GetUserResult>({
+  const query = useQuery<GetUserResult>({
     queryKey: authKeys.user(),
     queryFn: authApi.getCurrentUser,
     staleTime: 1000 * 60 * 5, // 5 минут
+    gcTime: 1000 * 60 * 10, // 10 минут (заменяет cacheTime)
+    retry: (failureCount, error) => {
+      console.log("🔄 useCurrentUser retry:", failureCount, error);
+      // Ограничиваем количество попыток
+      return failureCount < 1;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
   });
+
+  // Добавляем отладку
+  React.useEffect(() => {
+    console.log("📊 useCurrentUser state:", {
+      isLoading: query.isLoading,
+      isFetching: query.isFetching,
+      data: query.data,
+      error: query.error,
+      status: query.status,
+      failureCount: query.failureCount,
+      isStale: query.isStale,
+    });
+  }, [
+    query.isLoading,
+    query.isFetching,
+    query.data,
+    query.error,
+    query.status,
+    query.failureCount,
+    query.isStale,
+  ]);
+
+  return query;
 };
 
 export const useRegister = () => {
@@ -248,7 +317,15 @@ export const useLogin = () => {
     mutationFn: ({ email, password }: { email: string; password: string }) =>
       authApi.login(email, password),
     onSuccess: (data) => {
+      // Обновляем кеш пользователя
       queryClient.setQueryData(authKeys.user(), data);
+      // Инвалидируем связанные запросы
+      queryClient.invalidateQueries({ queryKey: authKeys.user() });
+    },
+    onError: (error) => {
+      console.error("Login mutation error:", error);
+      // Очищаем кеш при ошибке
+      queryClient.setQueryData(authKeys.user(), null);
     },
   });
 };
