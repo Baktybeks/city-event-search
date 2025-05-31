@@ -46,6 +46,7 @@ export default function MyEventsPage() {
           events: upcomingEvents,
           emptyMessage: "Нет предстоящих событий",
           emptyDescription: "Новые интересные мероприятия появятся здесь",
+          emptyIcon: "📅",
         };
       case "past":
         return {
@@ -53,6 +54,7 @@ export default function MyEventsPage() {
           events: pastEvents,
           emptyMessage: "Нет прошедших событий",
           emptyDescription: "События, которые вы посещали, появятся здесь",
+          emptyIcon: "⏰",
         };
       case "registered":
         return {
@@ -61,6 +63,7 @@ export default function MyEventsPage() {
           emptyMessage: "Нет регистраций",
           emptyDescription:
             "События, на которые вы зарегистрировались, появятся здесь",
+          emptyIcon: "🎫",
         };
       case "favorites":
         return {
@@ -68,6 +71,7 @@ export default function MyEventsPage() {
           events: favoriteEvents,
           emptyMessage: "Нет избранных событий",
           emptyDescription: "Добавляйте интересные события в избранное",
+          emptyIcon: "💝",
         };
       default:
         return {
@@ -75,6 +79,7 @@ export default function MyEventsPage() {
           events: [],
           emptyMessage: "Нет событий",
           emptyDescription: "",
+          emptyIcon: "📅",
         };
     }
   };
@@ -87,26 +92,64 @@ export default function MyEventsPage() {
       label: "Предстоящие",
       icon: Calendar,
       count: upcomingEvents.length,
+      color: "blue",
     },
     {
       id: "past" as const,
       label: "Прошедшие",
       icon: Clock,
       count: pastEvents.length,
+      color: "gray",
     },
     {
       id: "registered" as const,
       label: "Регистрации",
       icon: Ticket,
       count: registeredEvents.length,
+      color: "green",
     },
     {
       id: "favorites" as const,
       label: "Избранное",
       icon: Heart,
       count: favoriteEvents.length,
+      color: "red",
     },
   ];
+
+  const getTabColorClasses = (color: string, isActive: boolean) => {
+    const colors = {
+      blue: isActive
+        ? "border-blue-500 text-blue-600"
+        : "border-transparent text-gray-500 hover:text-blue-600 hover:border-blue-300",
+      gray: isActive
+        ? "border-gray-500 text-gray-600"
+        : "border-transparent text-gray-500 hover:text-gray-600 hover:border-gray-300",
+      green: isActive
+        ? "border-green-500 text-green-600"
+        : "border-transparent text-gray-500 hover:text-green-600 hover:border-green-300",
+      red: isActive
+        ? "border-red-500 text-red-600"
+        : "border-transparent text-gray-500 hover:text-red-600 hover:border-red-300",
+    };
+    return colors[color as keyof typeof colors] || colors.blue;
+  };
+
+  const getCounterColorClasses = (color: string, isActive: boolean) => {
+    const colors = {
+      blue: isActive
+        ? "bg-blue-100 text-blue-600"
+        : "bg-gray-100 text-gray-600",
+      gray: isActive
+        ? "bg-gray-100 text-gray-600"
+        : "bg-gray-100 text-gray-600",
+      green: isActive
+        ? "bg-green-100 text-green-600"
+        : "bg-gray-100 text-gray-600",
+      red: isActive ? "bg-red-100 text-red-600" : "bg-gray-100 text-gray-600",
+    };
+    return colors[color as keyof typeof colors] || colors.blue;
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -118,28 +161,26 @@ export default function MyEventsPage() {
       </div>
 
       {/* Навигационные вкладки */}
-      <div className="bg-white rounded-lg border border-gray-200 mb-6">
+      <div className="bg-white rounded-lg border border-gray-200 mb-6 overflow-hidden">
         <div className="border-b border-gray-200">
           <nav className="flex space-x-8 px-6" aria-label="Tabs">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-all duration-200 ${getTabColorClasses(
+                  tab.color,
                   activeTab === tab.id
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
+                )}`}
               >
                 <tab.icon className="h-4 w-4" />
                 {tab.label}
                 {tab.count > 0 && (
                   <span
-                    className={`ml-2 py-0.5 px-2 rounded-full text-xs ${
+                    className={`ml-2 py-0.5 px-2 rounded-full text-xs font-medium transition-colors ${getCounterColorClasses(
+                      tab.color,
                       activeTab === tab.id
-                        ? "bg-blue-100 text-blue-600"
-                        : "bg-gray-100 text-gray-600"
-                    }`}
+                    )}`}
                   >
                     {tab.count}
                   </span>
@@ -175,13 +216,17 @@ export default function MyEventsPage() {
           ) : tabContent.events.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {tabContent.events.map((event) => (
-                <div key={event.$id} className="relative">
-                  <EventCard event={event} variant="compact" />
+                <div key={event.$id} className="relative group">
+                  <EventCard
+                    event={event}
+                    variant="compact"
+                    className="h-full"
+                  />
 
                   {/* Дополнительные индикаторы */}
                   {activeTab === "registered" && (
-                    <div className="absolute top-2 left-2">
-                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                    <div className="absolute top-2 left-2 z-10">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full shadow-sm">
                         <CheckCircle className="h-3 w-3" />
                         Зарегистрирован
                       </span>
@@ -189,8 +234,8 @@ export default function MyEventsPage() {
                   )}
 
                   {activeTab === "past" && (
-                    <div className="absolute top-2 left-2">
-                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
+                    <div className="absolute top-2 left-2 z-10">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full shadow-sm">
                         <Clock className="h-3 w-3" />
                         Завершено
                       </span>
@@ -198,24 +243,22 @@ export default function MyEventsPage() {
                   )}
 
                   {activeTab === "favorites" && (
-                    <div className="absolute top-2 right-2">
-                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-600 text-xs font-medium rounded-full">
+                    <div className="absolute top-2 right-2 z-10">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-600 text-xs font-medium rounded-full shadow-sm">
                         <Heart className="h-3 w-3 fill-current" />
                         Избранное
                       </span>
                     </div>
                   )}
+
+                  {/* Hover эффект */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/0 via-transparent to-black/0 opacity-0 group-hover:opacity-10 transition-opacity duration-300 rounded-lg pointer-events-none" />
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">
-                {activeTab === "upcoming" && "📅"}
-                {activeTab === "past" && "⏰"}
-                {activeTab === "registered" && "🎫"}
-                {activeTab === "favorites" && "💝"}
-              </div>
+            <div className="text-center py-16">
+              <div className="text-6xl mb-6">{tabContent.emptyIcon}</div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
                 {tabContent.emptyMessage}
               </h3>
@@ -226,16 +269,24 @@ export default function MyEventsPage() {
               <div className="space-y-4">
                 <a
                   href="/events"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-md hover:shadow-lg"
                 >
                   <Calendar className="h-5 w-5" />
                   Найти события
                 </a>
 
                 {activeTab === "favorites" && (
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-gray-500 mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <Heart className="h-4 w-4 inline mr-1" />
                     Нажимайте на ❤️ на карточках событий, чтобы добавить их в
                     избранное
+                  </div>
+                )}
+
+                {activeTab === "registered" && (
+                  <div className="text-sm text-gray-500 mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                    <Ticket className="h-4 w-4 inline mr-1" />
+                    Регистрируйтесь на события, чтобы они появились здесь
                   </div>
                 )}
               </div>
@@ -247,7 +298,7 @@ export default function MyEventsPage() {
       {/* Статистика пользователя */}
       {!isLoading && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
                 <Calendar className="h-6 w-6 text-blue-600" />
@@ -261,7 +312,7 @@ export default function MyEventsPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-green-100 rounded-lg">
                 <Ticket className="h-6 w-6 text-green-600" />
@@ -275,7 +326,7 @@ export default function MyEventsPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-red-100 rounded-lg">
                 <Heart className="h-6 w-6 text-red-600" />
@@ -289,7 +340,7 @@ export default function MyEventsPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-purple-100 rounded-lg">
                 <Clock className="h-6 w-6 text-purple-600" />
@@ -304,6 +355,49 @@ export default function MyEventsPage() {
           </div>
         </div>
       )}
+
+      {/* Рекомендации */}
+      {!isLoading &&
+        tabContent.events.length === 0 &&
+        activeTab === "upcoming" && (
+          <div className="mt-8 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 border border-blue-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              💡 Рекомендации для вас
+            </h3>
+            <p className="text-gray-600 mb-4">
+              Начните изучать события в вашем городе:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <a
+                href="/events?category=CONCERT"
+                className="flex items-center gap-2 p-3 bg-white rounded-lg hover:shadow-md transition-shadow border border-gray-200"
+              >
+                <span className="text-2xl">🎵</span>
+                <span className="text-sm font-medium text-gray-700">
+                  Концерты
+                </span>
+              </a>
+              <a
+                href="/events?category=EXHIBITION"
+                className="flex items-center gap-2 p-3 bg-white rounded-lg hover:shadow-md transition-shadow border border-gray-200"
+              >
+                <span className="text-2xl">🎨</span>
+                <span className="text-sm font-medium text-gray-700">
+                  Выставки
+                </span>
+              </a>
+              <a
+                href="/events?category=WORKSHOP"
+                className="flex items-center gap-2 p-3 bg-white rounded-lg hover:shadow-md transition-shadow border border-gray-200"
+              >
+                <span className="text-2xl">🛠️</span>
+                <span className="text-sm font-medium text-gray-700">
+                  Мастер-классы
+                </span>
+              </a>
+            </div>
+          </div>
+        )}
     </div>
   );
 }

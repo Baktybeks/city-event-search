@@ -20,6 +20,7 @@ interface EventCardProps {
   isFavorite?: boolean;
   showOrganizer?: boolean;
   variant?: "default" | "compact" | "featured";
+  className?: string;
 }
 
 export function EventCard({
@@ -28,6 +29,7 @@ export function EventCard({
   isFavorite = false,
   showOrganizer = false,
   variant = "default",
+  className = "",
 }: EventCardProps) {
   const eventDate = new Date(event.startDate);
   const isToday = isEventToday(event.startDate);
@@ -66,7 +68,9 @@ export function EventCard({
   if (variant === "compact") {
     return (
       <Link href={`/events/${event.$id}`} className="block">
-        <div className="bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200 p-4">
+        <div
+          className={`bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200 p-4 ${className}`}
+        >
           <div className="flex items-start gap-3">
             <div className="text-2xl flex-shrink-0 mt-1">
               {getCategoryIcon(event.category)}
@@ -96,7 +100,9 @@ export function EventCard({
   if (variant === "featured") {
     return (
       <Link href={`/events/${event.$id}`} className="block group">
-        <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200 hover:border-blue-300 hover:shadow-lg transition-all duration-300 overflow-hidden">
+        <div
+          className={`bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl border-2 border-blue-200 hover:border-blue-300 hover:shadow-lg transition-all duration-300 overflow-hidden ${className}`}
+        >
           {event.imageUrl && (
             <div className="aspect-video overflow-hidden">
               <img
@@ -177,7 +183,9 @@ export function EventCard({
 
   return (
     <Link href={`/events/${event.$id}`} className="block group">
-      <div className="bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-200 overflow-hidden">
+      <div
+        className={`bg-white rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-200 overflow-hidden ${className}`}
+      >
         {event.imageUrl && (
           <div className="aspect-video overflow-hidden">
             <img

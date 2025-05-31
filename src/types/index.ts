@@ -172,9 +172,6 @@ export interface EventWithDetails extends Event {
   registrationCount?: number;
 }
 
-// Импортируем типы для системы заявок
-export * from "./maintenance";
-
 // Utility functions
 export const getRoleLabel = (role: UserRole): string => {
   return UserRoleLabels[role] || role;
