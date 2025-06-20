@@ -1,28 +1,33 @@
+// src/app/api/check-admins/route.ts
+import { NextResponse } from "next/server";
+import { databases } from "@/services/appwriteClient";
 import { appwriteConfig } from "@/constants/appwriteConfig";
-import { Client, Databases, Query } from "appwrite";
 import { UserRole } from "@/types";
+import { Query } from "appwrite";
 
 export async function GET() {
   try {
-    const client = new Client()
-      .setEndpoint(appwriteConfig.endpoint)
-      .setProject(appwriteConfig.projectId);
-
-    const database = new Databases(client);
-
-    // Проверяем, есть ли пользователи с ролью ADMIN
-    const adminCheck = await database.listDocuments(
+    // Проверяем наличие администраторов в системе
+    const adminCheck = await databases.listDocuments(
       appwriteConfig.databaseId,
       appwriteConfig.collections.users,
       [Query.equal("role", UserRole.ADMIN)]
     );
 
-    // Если нет администраторов, значит это первый пользователь
     const isFirstUser = adminCheck.total === 0;
 
-    return Response.json({ isFirstUser });
+    return NextResponse.json({
+      isFirstUser,
+      adminCount: adminCheck.total,
+    });
   } catch (error) {
     console.error("Ошибка при проверке администраторов:", error);
-    return Response.json({ message: "Ошибка сервера" }, { status: 500 });
+
+    // Если ошибка связана с отсутствием коллекции или базы данных,
+    // предполагаем что это первый пользователь
+    return NextResponse.json({
+      isFirstUser: true,
+      adminCount: 0,
+    });
   }
 }

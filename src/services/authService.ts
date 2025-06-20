@@ -203,6 +203,34 @@ export const authApi = {
     }
   },
 
+  // Добавляем функцию обновления текущего пользователя
+  updateCurrentUser: async (data: Partial<User>): Promise<User> => {
+    try {
+      console.log("Обновление данных текущего пользователя...");
+
+      // Получаем текущего пользователя
+      const currentUser = await authApi.getCurrentUser();
+
+      if (!currentUser || "notActivated" in currentUser) {
+        throw new Error("Пользователь не авторизован");
+      }
+
+      // Обновляем данные пользователя в базе данных
+      const updatedUser = await database.updateDocument(
+        DATABASE_ID,
+        collections.users,
+        currentUser.$id,
+        data
+      );
+
+      console.log("Данные пользователя успешно обновлены");
+      return updatedUser as unknown as User;
+    } catch (error) {
+      console.error("Ошибка при обновлении данных пользователя:", error);
+      throw error;
+    }
+  },
+
   activateUser: async (userId: string): Promise<User> => {
     try {
       console.log(`Активация пользователя с ID: ${userId}...`);
@@ -338,6 +366,25 @@ export const useLogout = () => {
     onSuccess: () => {
       queryClient.setQueryData(authKeys.user(), null);
       queryClient.clear();
+    },
+  });
+};
+
+// Добавляем хук для обновления текущего пользователя
+export const useUpdateCurrentUser = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: Partial<User>) => authApi.updateCurrentUser(data),
+    onSuccess: (updatedUser) => {
+      // Обновляем кеш текущего пользователя
+      queryClient.setQueryData(authKeys.user(), updatedUser);
+      // Инвалидируем связанные запросы
+      queryClient.invalidateQueries({ queryKey: authKeys.user() });
+      queryClient.invalidateQueries({ queryKey: authKeys.users() });
+    },
+    onError: (error) => {
+      console.error("Update user mutation error:", error);
     },
   });
 };

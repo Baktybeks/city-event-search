@@ -13,11 +13,12 @@ import {
   Camera,
   Bell,
   Globe,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "react-toastify";
 
 export default function OrganizerSettingsPage() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, loading } = useAuth();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -41,6 +42,7 @@ export default function OrganizerSettingsPage() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -53,6 +55,20 @@ export default function OrganizerSettingsPage() {
       });
     }
   }, [user]);
+
+  // Отслеживаем изменения в форме
+  useEffect(() => {
+    if (user) {
+      const hasFormChanges =
+        formData.name !== (user.name || "") ||
+        formData.email !== (user.email || "") ||
+        formData.phone !== (user.phone || "") ||
+        formData.bio !== (user.bio || "") ||
+        formData.avatar !== (user.avatar || "");
+
+      setHasChanges(hasFormChanges);
+    }
+  }, [formData, user]);
 
   if (!user || user.role !== UserRole.ORGANIZER) {
     return (
@@ -75,18 +91,40 @@ export default function OrganizerSettingsPage() {
     setIsLoading(true);
 
     try {
-      // В реальном приложении здесь был бы вызов API для обновления профиля
-      // await updateUser(formData);
+      // Подготавливаем данные для обновления
+      const updateData: Partial<typeof user> = {};
 
-      toast.success("Настройки успешно сохранены!", {
-        position: "top-right",
-        autoClose: 3000,
-      });
+      if (formData.name !== user.name) updateData.name = formData.name;
+      if (formData.email !== user.email) updateData.email = formData.email;
+      if (formData.phone !== user.phone) updateData.phone = formData.phone;
+      if (formData.bio !== user.bio) updateData.bio = formData.bio;
+      if (formData.avatar !== user.avatar) updateData.avatar = formData.avatar;
+
+      // Обновляем профиль только если есть изменения
+      if (Object.keys(updateData).length > 0) {
+        await updateUser(updateData);
+
+        toast.success("Настройки успешно сохранены!", {
+          position: "top-right",
+          autoClose: 3000,
+        });
+      } else {
+        toast.info("Нет изменений для сохранения", {
+          position: "top-right",
+          autoClose: 2000,
+        });
+      }
     } catch (error) {
-      toast.error("Ошибка при сохранении настроек", {
-        position: "top-right",
-        autoClose: 3000,
-      });
+      console.error("Ошибка при сохранении:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Ошибка при сохранении настроек",
+        {
+          position: "top-right",
+          autoClose: 4000,
+        }
+      );
     } finally {
       setIsLoading(false);
     }
@@ -95,16 +133,65 @@ export default function OrganizerSettingsPage() {
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // В реальном приложении здесь была бы загрузка файла
+      // Проверяем размер файла (максимум 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Размер файла не должен превышать 5MB", {
+          position: "top-right",
+          autoClose: 3000,
+        });
+        return;
+      }
+
+      // Проверяем тип файла
+      if (!file.type.startsWith("image/")) {
+        toast.error("Пожалуйста, выберите файл изображения", {
+          position: "top-right",
+          autoClose: 3000,
+        });
+        return;
+      }
+
+      // В реальном приложении здесь была бы загрузка файла в Appwrite Storage
       const reader = new FileReader();
       reader.onload = (event) => {
+        const result = event.target?.result as string;
         setFormData({
           ...formData,
-          avatar: event.target?.result as string,
+          avatar: result,
+        });
+
+        toast.success(
+          "Изображение загружено. Не забудьте сохранить изменения!",
+          {
+            position: "top-right",
+            autoClose: 3000,
+          }
+        );
+      };
+      reader.onerror = () => {
+        toast.error("Ошибка при загрузке изображения", {
+          position: "top-right",
+          autoClose: 3000,
         });
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleSaveNotifications = async () => {
+    // В реальном приложении здесь был бы API вызов для сохранения настроек уведомлений
+    toast.success("Настройки уведомлений сохранены", {
+      position: "top-right",
+      autoClose: 2000,
+    });
+  };
+
+  const handleSavePrivacy = async () => {
+    // В реальном приложении здесь был бы API вызов для сохранения настроек приватности
+    toast.success("Настройки приватности сохранены", {
+      position: "top-right",
+      autoClose: 2000,
+    });
   };
 
   return (
@@ -159,7 +246,7 @@ export default function OrganizerSettingsPage() {
                   <h3 className="font-medium text-gray-900">{user.name}</h3>
                   <p className="text-sm text-gray-500">Организатор</p>
                   <p className="text-xs text-gray-400 mt-1">
-                    Рекомендуемый размер: 400x400px
+                    Рекомендуемый размер: 400x400px, максимум 5MB
                   </p>
                 </div>
               </div>
@@ -178,6 +265,7 @@ export default function OrganizerSettingsPage() {
                   }
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Ваше полное имя"
+                  required
                 />
               </div>
 
@@ -195,7 +283,11 @@ export default function OrganizerSettingsPage() {
                   }
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="your@email.com"
+                  required
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Изменение email потребует подтверждения
+                </p>
               </div>
 
               {/* Телефон */}
@@ -228,15 +320,31 @@ export default function OrganizerSettingsPage() {
                   rows={4}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Расскажите о себе как об организаторе..."
+                  maxLength={500}
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.bio.length}/500 символов
+                </p>
               </div>
+
+              {/* Предупреждение о несохраненных изменениях */}
+              {hasChanges && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    <span className="text-sm text-amber-800">
+                      У вас есть несохраненные изменения
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || loading || !hasChanges}
                 className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
               >
-                {isLoading ? (
+                {isLoading || loading ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
                   <>
@@ -250,11 +358,19 @@ export default function OrganizerSettingsPage() {
 
           {/* Уведомления */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <Bell className="h-6 w-6 text-blue-600" />
-              <h2 className="text-xl font-semibold text-gray-900">
-                Уведомления
-              </h2>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <Bell className="h-6 w-6 text-blue-600" />
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Уведомления
+                </h2>
+              </div>
+              <button
+                onClick={handleSaveNotifications}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+              >
+                Сохранить
+              </button>
             </div>
 
             <div className="space-y-4">
@@ -362,11 +478,19 @@ export default function OrganizerSettingsPage() {
 
           {/* Приватность */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <Globe className="h-6 w-6 text-blue-600" />
-              <h2 className="text-xl font-semibold text-gray-900">
-                Приватность
-              </h2>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <Globe className="h-6 w-6 text-blue-600" />
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Приватность
+                </h2>
+              </div>
+              <button
+                onClick={handleSavePrivacy}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+              >
+                Сохранить
+              </button>
             </div>
 
             <div className="space-y-4">

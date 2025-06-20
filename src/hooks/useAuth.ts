@@ -3,6 +3,8 @@ import {
   useCurrentUser,
   useLogin as useAppwriteLogin,
   useLogout as useAppwriteLogout,
+  useRegister as useAppwriteRegister,
+  useUpdateCurrentUser as useAppwriteUpdateCurrentUser,
 } from "@/services/authService";
 import { UserRole, User } from "@/types";
 
@@ -33,6 +35,8 @@ export function useAuth() {
   const { data: user, isLoading, error, refetch } = useCurrentUser();
   const loginMutation = useAppwriteLogin();
   const logoutMutation = useAppwriteLogout();
+  const registerMutation = useAppwriteRegister();
+  const updateUserMutation = useAppwriteUpdateCurrentUser();
 
   // Определяем тип пользователя
   const isActiveUser = isAuthenticatedUser(user);
@@ -43,6 +47,37 @@ export function useAuth() {
       const result = await loginMutation.mutateAsync({ email, password });
       // Обновляем кеш после успешного логина
       await refetch();
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const register = async (
+    name: string,
+    email: string,
+    password: string,
+    role: UserRole
+  ): Promise<User> => {
+    try {
+      const result = await registerMutation.mutateAsync({
+        name,
+        email,
+        password,
+        role,
+      });
+      // Обновляем кеш после успешной регистрации
+      await refetch();
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const updateUser = async (data: Partial<User>): Promise<User> => {
+    try {
+      const result = await updateUserMutation.mutateAsync(data);
+      // Кеш обновляется автоматически в мутации
       return result;
     } catch (error) {
       throw error;
@@ -82,14 +117,23 @@ export function useAuth() {
 
   return {
     user: getUserWithId(),
-    loading: isLoading || loginMutation.isPending || logoutMutation.isPending,
+    loading:
+      isLoading ||
+      loginMutation.isPending ||
+      logoutMutation.isPending ||
+      registerMutation.isPending ||
+      updateUserMutation.isPending,
     error:
       error?.message ||
       loginMutation.error?.message ||
       logoutMutation.error?.message ||
+      registerMutation.error?.message ||
+      updateUserMutation.error?.message ||
       null,
     isNotActivated: isNotActivated,
     login,
+    register,
+    updateUser,
     logout,
     clearError,
     checkAuthState,

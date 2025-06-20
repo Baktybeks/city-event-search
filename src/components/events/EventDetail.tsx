@@ -2,16 +2,21 @@
 "use client";
 
 import React from "react";
-import { EventWithDetails, formatPrice, isEventToday, isEventUpcoming } from "@/types";
-import { 
-  Calendar, 
-  MapPin, 
-  Users, 
-  DollarSign, 
-  Clock, 
+import {
+  EventWithDetails,
+  formatPrice,
+  isEventToday,
+  isEventUpcoming,
+} from "@/types";
+import {
+  Calendar,
+  MapPin,
+  Users,
+  DollarSign,
+  Clock,
   ExternalLink,
   User,
-  Eye
+  Eye,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -91,7 +96,7 @@ export function EventDetail({
                 </div>
               )}
             </div>
-            
+
             {event.featured && (
               <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-semibold">
                 ⭐ Рекомендуем
@@ -180,7 +185,7 @@ export function EventDetail({
                   {event.registrationCount !== undefined && (
                     <span>Зарегистрировано: {event.registrationCount}</span>
                   )}
-                                        {event.maxAttendees && (
+                  {event.maxAttendees && (
                     <span>
                       {event.registrationCount !== undefined ? " / " : "Макс. "}
                       {event.maxAttendees} участников
@@ -188,8 +193,8 @@ export function EventDetail({
                   )}
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Просмотры */}
           <div className="flex items-start gap-3">
@@ -210,12 +215,12 @@ export function EventDetail({
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Организатор
           </h2>
-          
+
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-xl">
               {event.organizerInfo.name.charAt(0).toUpperCase()}
             </div>
-            
+
             <div>
               <h3 className="font-semibold text-gray-900 text-lg">
                 {event.organizerInfo.name}
@@ -323,21 +328,21 @@ export function EventDetail({
       </div>
 
       {/* Предупреждения */}
-      {event.maxAttendees && 
-       event.registrationCount && 
-       event.registrationCount >= event.maxAttendees && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 text-red-700">
-            <Users className="h-5 w-5" />
-            <span className="font-medium">
-              Достигнуто максимальное количество участников
-            </span>
+      {event.maxAttendees &&
+        event.registrationCount &&
+        event.registrationCount >= event.maxAttendees && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 text-red-700">
+              <Users className="h-5 w-5" />
+              <span className="font-medium">
+                Достигнуто максимальное количество участников
+              </span>
+            </div>
+            <p className="text-sm text-red-600 mt-1">
+              Регистрация на это событие больше недоступна
+            </p>
           </div>
-          <p className="text-sm text-red-600 mt-1">
-            Регистрация на это событие больше недоступна
-          </p>
-        </div>
-      )}
+        )}
     </div>
   );
 }
