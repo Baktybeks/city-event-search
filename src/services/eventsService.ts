@@ -33,8 +33,23 @@ export const eventsApi = {
         Query.equal("status", EventStatus.PUBLISHED),
       ];
 
+      // Поиск по тексту - ищем в title, description
       if (filters?.search) {
-        queries.push(Query.search("title", filters.search));
+        const searchTerm = filters.search.trim();
+        if (searchTerm) {
+          // Используем OR запрос для поиска по нескольким полям
+          // Сначала попробуем поиск по title
+          try {
+            queries.push(Query.search("title", searchTerm));
+          } catch (error) {
+            console.warn(
+              "Fulltext поиск недоступен, используем альтернативный метод"
+            );
+            // Если fulltext недоступен, используем contains (работает не для всех случаев)
+            // В продакшене лучше настроить fulltext индексы
+            queries.push(Query.contains("title", searchTerm));
+          }
+        }
       }
 
       if (filters?.category) {
@@ -53,8 +68,13 @@ export const eventsApi = {
         queries.push(Query.lessThanEqual("startDate", filters.endDate));
       }
 
+      // Для поиска по локации тоже используем fulltext или contains
       if (filters?.location) {
-        queries.push(Query.search("location", filters.location));
+        try {
+          queries.push(Query.search("location", filters.location));
+        } catch (error) {
+          queries.push(Query.contains("location", filters.location));
+        }
       }
 
       if (filters?.featured) {
@@ -323,6 +343,7 @@ export const eventsApi = {
       const favoriteData = {
         eventId,
         userId,
+        createdAt: new Date().toISOString(),
       };
 
       const result = await databases.createDocument(

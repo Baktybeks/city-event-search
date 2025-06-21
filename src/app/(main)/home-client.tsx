@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { EventCard } from "@/components/events/EventCard";
 import { EventFilters } from "@/components/events/EventFilters";
 import {
@@ -28,9 +29,39 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 
+// Хук для дебаунсинга
+function useDebounce(value: string, delay: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 export default function HomePageClient() {
   const { user } = useAuth();
+  const router = useRouter();
   const [filters, setFilters] = useState<EventFiltersType>({});
+  const [searchInput, setSearchInput] = useState("");
+
+  // Дебаунсированное значение поиска
+  const debouncedSearch = useDebounce(searchInput, 500);
+
+  // Обновляем фильтры когда дебаунсированное значение изменяется
+  useEffect(() => {
+    setFilters((prev) => ({
+      ...prev,
+      search: debouncedSearch || undefined,
+    }));
+  }, [debouncedSearch]);
 
   // Запросы
   const { data: featuredEvents, isLoading: featuredLoading } =
@@ -88,6 +119,19 @@ export default function HomePageClient() {
 
   const clearFilters = () => {
     setFilters({});
+    setSearchInput("");
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchInput.trim()) {
+      // Перенаправляем на страницу поиска с параметрами
+      router.push(`/search?q=${encodeURIComponent(searchInput.trim())}`);
+    }
+  };
+
+  const handleCategoryClick = (category: EventCategory) => {
+    setFilters({ ...filters, category });
   };
 
   const hasActiveFilters = Object.values(filters).some(
@@ -109,18 +153,22 @@ export default function HomePageClient() {
 
             {/* Быстрый поиск */}
             <div className="max-w-2xl mx-auto bg-white/10 backdrop-blur-md rounded-xl p-6">
-              <div className="relative mb-4">
-                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-300" />
+              <form onSubmit={handleSearchSubmit} className="relative mb-4">
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Что ищем? Концерты, выставки, мастер-классы..."
-                  value={filters.search || ""}
-                  onChange={(e) =>
-                    setFilters({ ...filters, search: e.target.value })
-                  }
-                  className="w-full pl-12 pr-4 py-3 bg-white rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-white focus:outline-none"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  className="w-full pl-12 pr-24 py-3 bg-white rounded-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
-              </div>
+                <button
+                  type="submit"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 px-4 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+                >
+                  Найти
+                </button>
+              </form>
 
               {/* Быстрые категории */}
               <div className="flex flex-wrap gap-2 justify-center">
@@ -132,14 +180,34 @@ export default function HomePageClient() {
                 ].map((category) => (
                   <button
                     key={category}
-                    onClick={() => setFilters({ ...filters, category })}
-                    className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-full text-sm font-medium transition-colors flex items-center gap-2"
+                    onClick={() => handleCategoryClick(category)}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
+                      filters.category === category
+                        ? "bg-white/30 text-white"
+                        : "bg-white/20 hover:bg-white/30 text-white/90"
+                    }`}
                   >
                     <span>{getCategoryIcon(category)}</span>
                     {getCategoryLabel(category)}
                   </button>
                 ))}
               </div>
+
+              {/* Статус поиска */}
+              {searchInput && (
+                <div className="mt-4 text-center">
+                  <div className="text-sm text-white/80">
+                    {eventsLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        Поиск...
+                      </span>
+                    ) : (
+                      `Найдено: ${eventsData?.pages[0]?.total || 0} событий`
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -284,14 +352,18 @@ export default function HomePageClient() {
                   События не найдены
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  Попробуйте изменить критерии поиска или очистить фильтры
+                  {hasActiveFilters
+                    ? "Попробуйте изменить критерии поиска или очистить фильтры"
+                    : "В данный момент нет доступных событий"}
                 </p>
-                <button
-                  onClick={clearFilters}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                >
-                  Очистить фильтры
-                </button>
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearFilters}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    Очистить фильтры
+                  </button>
+                )}
               </div>
             )}
           </div>

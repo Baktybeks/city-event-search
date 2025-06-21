@@ -29,7 +29,6 @@ import {
 import Link from "next/link";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
-import { CompactEventStatus } from "@/components/events/CompactEventStatus";
 import { CompactEventStatusPortal } from "@/components/events/CompactEventStatusPortal";
 
 type ViewMode = "grid" | "table";
