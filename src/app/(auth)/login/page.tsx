@@ -1,4 +1,5 @@
-// src/app/(auth)/login/page.tsx
+// src/app/(auth)/login/page.tsx - ОБНОВЛЕННАЯ ВЕРСИЯ С ZUSTAND
+
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
@@ -6,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { UserRole } from "@/types";
 import { toast } from "react-toastify";
-import { useLogin, useCurrentUser } from "@/services/authService";
+import { useAuth } from "@/hooks/useAuth";
 import {
   CheckCircle,
   Clock,
@@ -57,52 +58,13 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get("redirect") || null;
 
-  const { data: currentUser, isLoading: isCheckingUser } = useCurrentUser();
-  const loginMutation = useLogin();
-
-  // Проверяем, авторизован ли уже пользователь при загрузке
-  useEffect(() => {
-    console.log(
-      "useEffect - currentUser:",
-      currentUser,
-      "isCheckingUser:",
-      isCheckingUser
-    );
-
-    if (
-      currentUser &&
-      typeof currentUser === "object" &&
-      "name" in currentUser &&
-      !isCheckingUser
-    ) {
-      console.log(
-        "Пользователь уже авторизован, перенаправляем...",
-        currentUser
-      );
-
-      setIsRedirecting(true);
-
-      toast.success(`Добро пожаловать, ${currentUser.name}!`, {
-        position: "top-right",
-        autoClose: 2000,
-      });
-
-      const targetUrl = redirectPath || getRedirectUrl(currentUser.role);
-      console.log("Перенаправляем на:", targetUrl);
-
-      // Используем window.location.href для надежного перенаправления
-      setTimeout(() => {
-        console.log("Выполняем перенаправление через window.location.href");
-        window.location.href = targetUrl;
-      }, 1000); // Увеличиваем задержку чтобы пользователь увидел сообщение
-    }
-  }, [currentUser, isCheckingUser, redirectPath]);
+  const { user, isAuthenticated, login, loading } = useAuth();
 
   const getRedirectUrl = (role: UserRole): string => {
     switch (role) {
@@ -117,50 +79,66 @@ function LoginForm() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    console.log("Попытка входа с данными:", { email, password: "***" });
-
-    try {
-      const user = await loginMutation.mutateAsync({ email, password });
-      console.log("Успешный логин, пользователь:", user);
+  // Автоматическое перенаправление для уже авторизованных пользователей с redirect параметром
+  useEffect(() => {
+    if (isAuthenticated && user && !isSubmitting && redirectPath) {
+      console.log(
+        "🚀 Пользователь уже авторизован, перенаправляем на:",
+        redirectPath
+      );
 
       toast.success(`Добро пожаловать, ${user.name}!`, {
         position: "top-right",
-        autoClose: 3000,
+        autoClose: 2000,
       });
 
-      const targetUrl = redirectPath || getRedirectUrl(user.role);
-      console.log("Перенаправляем на:", targetUrl);
-
-      setIsRedirecting(true);
-
-      // Используем window.location.href для надежного перенаправления
       setTimeout(() => {
-        console.log(
-          "Выполняем перенаправление после логина через window.location.href"
-        );
+        window.location.href = redirectPath;
+      }, 500);
+    }
+  }, [isAuthenticated, user, isSubmitting, redirectPath]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    console.log("🔐 Попытка входа:", { email, password: "***" });
+
+    try {
+      const loggedInUser = await login(email, password);
+      console.log("✅ Успешный логин:", loggedInUser.name);
+
+      toast.success(`Добро пожаловать, ${loggedInUser.name}!`, {
+        position: "top-right",
+        autoClose: 2000,
+      });
+
+      const targetUrl = redirectPath || getRedirectUrl(loggedInUser.role);
+      console.log("🚀 Перенаправляем на:", targetUrl);
+
+      // Небольшая задержка для показа уведомления и обновления cookie
+      setTimeout(() => {
         window.location.href = targetUrl;
-      }, 1000);
+      }, 800);
     } catch (error: any) {
-      console.error("Ошибка при входе:", error);
+      console.error("❌ Ошибка при входе:", error);
+      setIsSubmitting(false);
 
       const message = error?.message || "Ошибка при входе";
 
       if (message.includes("активации")) {
-        toast.error(
-          "⚠️ Ваш аккаунт еще не активирован администратором. Попробуйте позже или обратитесь к администратору.",
-          { position: "top-center", autoClose: 6000 }
-        );
+        toast.error("⚠️ Ваш аккаунт еще не активирован администратором.", {
+          position: "top-center",
+          autoClose: 6000,
+        });
       } else if (
         message.includes("Invalid credentials") ||
         message.includes("Неверный")
       ) {
-        toast.error(
-          "❌ Неверный email или пароль. Проверьте правильность введенных данных.",
-          { position: "top-center", autoClose: 5000 }
-        );
+        toast.error("❌ Неверный email или пароль.", {
+          position: "top-center",
+          autoClose: 5000,
+        });
       } else {
         toast.error(`Ошибка входа: ${message}`, {
           position: "top-center",
@@ -170,65 +148,27 @@ function LoginForm() {
     }
   };
 
-  // Показываем загрузку если идет проверка пользователя, вход или перенаправление
-  if (isCheckingUser || loginMutation.isPending || isRedirecting) {
+  // Показываем индикатор загрузки
+  if (loading || isSubmitting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl border border-gray-100">
           <div className="text-center">
             <div className="text-4xl mb-4">🎉</div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              {isCheckingUser
-                ? "Проверка авторизации..."
-                : isRedirecting
-                ? "Перенаправление..."
-                : "Вход в систему..."}
+              {isSubmitting ? "Вход в систему..." : "Проверка авторизации..."}
             </h1>
             <div className="flex items-center justify-center gap-2">
               <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
               <p className="text-gray-600">
-                {isCheckingUser
-                  ? "Проверяем данные..."
-                  : isRedirecting
-                  ? "Переходим на нужную страницу..."
-                  : "Входим в систему..."}
+                {isSubmitting ? "Входим в систему..." : "Проверяем данные..."}
               </p>
             </div>
-            {process.env.NODE_ENV === "development" && (
-              <div className="mt-4 space-y-2">
-                <div className="text-xs text-gray-500 p-2 bg-gray-50 rounded">
-                  Debug: isCheckingUser={String(isCheckingUser)}, isRedirecting=
-                  {String(isRedirecting)}, hasUser={String(!!currentUser)},
-                  redirectPath={redirectPath}
-                </div>
-                {isRedirecting && (
-                  <button
-                    onClick={() => {
-                      const targetUrl =
-                        redirectPath ||
-                        (currentUser &&
-                        typeof currentUser === "object" &&
-                        "role" in currentUser
-                          ? getRedirectUrl(currentUser.role)
-                          : "/");
-                      console.log("Ручное перенаправление на:", targetUrl);
-                      window.location.href = targetUrl;
-                    }}
-                    className="w-full px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-                  >
-                    Перейти вручную (если не перенаправляет автоматически)
-                  </button>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>
     );
   }
-
-  // НЕ скрываем форму, если пользователь авторизован - пусть показывается состояние загрузки
-  // Форма будет скрыта через состояние isRedirecting выше
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -243,25 +183,30 @@ function LoginForm() {
           </p>
         </div>
 
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          {process.env.NODE_ENV === "development" && (
-            <div className="text-xs text-gray-500 p-2 bg-gray-50 rounded">
-              Debug:{" "}
-              {JSON.stringify({
-                email,
-                hasPassword: !!password,
-                isLoading: loginMutation.isPending,
-                currentUser:
-                  currentUser &&
-                  typeof currentUser === "object" &&
-                  "name" in currentUser
-                    ? "authorized"
-                    : "not authorized",
-                redirectPath,
-              })}
+        {/* Показываем информацию, если пользователь уже авторизован */}
+        {isAuthenticated && user && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center gap-3">
+              <Info className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="text-sm font-medium text-blue-900">
+                  Вы уже авторизованы как {user.name}
+                </p>
+                <button
+                  onClick={() => {
+                    const targetUrl = redirectPath || getRedirectUrl(user.role);
+                    window.location.href = targetUrl;
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-800 underline"
+                >
+                  Перейти к панели управления
+                </button>
+              </div>
             </div>
-          )}
+          </div>
+        )}
 
+        <form className="space-y-6" onSubmit={handleSubmit}>
           <div>
             <label
               htmlFor="email"
@@ -275,7 +220,7 @@ function LoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              disabled={loginMutation.isPending}
+              disabled={loading}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               placeholder="your@email.com"
             />
@@ -295,14 +240,14 @@ function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                disabled={loginMutation.isPending}
+                disabled={loading}
                 className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="••••••••"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                disabled={loginMutation.isPending}
+                disabled={loading}
                 className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {showPassword ? (
@@ -316,10 +261,10 @@ function LoginForm() {
 
           <button
             type="submit"
-            disabled={loginMutation.isPending}
+            disabled={loading}
             className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
           >
-            {loginMutation.isPending ? (
+            {loading ? (
               <div className="flex items-center justify-center gap-2">
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 Вход...

@@ -1,3 +1,5 @@
+// src/app/admin/page.tsx - ОБНОВЛЕННАЯ ВЕРСИЯ
+
 "use client";
 
 import React from "react";
@@ -9,8 +11,8 @@ import {
   useActivateUser,
   useDeactivateUser,
 } from "@/services/authService";
-import { useEvents } from "@/services/eventsService";
-import { getRoleLabel, getRoleColor, UserRole } from "@/types";
+import { useAdminEvents } from "@/services/eventsService"; // ← ДОБАВЛЕНО
+import { getRoleLabel, getRoleColor, UserRole, EventStatus } from "@/types"; // ← ДОБАВЛЕНО EventStatus
 import {
   Users,
   Calendar,
@@ -23,6 +25,10 @@ import {
   CheckCircle,
   Clock,
   Shield,
+  Eye,
+  Star,
+  X,
+  ExternalLink, // ← ДОБАВЛЕНО
 } from "lucide-react";
 import { toast } from "react-toastify";
 
@@ -31,7 +37,10 @@ export default function AdminDashboard() {
   const { data: allUsers = [], isLoading: usersLoading } = useAllUsers();
   const { data: pendingUsers = [], isLoading: pendingLoading } =
     usePendingUsers();
-  const { data: eventsData } = useEvents({});
+
+  // ← ДОБАВЛЕНО: Загружаем события для админов
+  const { data: eventsData, isLoading: eventsLoading } = useAdminEvents({});
+
   const activateUserMutation = useActivateUser();
   const deactivateUserMutation = useDeactivateUser();
 
@@ -51,7 +60,18 @@ export default function AdminDashboard() {
     );
   }
 
+  // ← ДОБАВЛЕНО: Вычисляем статистику событий
   const events = eventsData?.pages.flatMap((page) => page.events) || [];
+  const totalEvents = events.length;
+  const publishedEvents = events.filter(
+    (e) => e.status === EventStatus.PUBLISHED
+  );
+  const draftEvents = events.filter((e) => e.status === EventStatus.DRAFT);
+  const cancelledEvents = events.filter(
+    (e) => e.status === EventStatus.CANCELLED
+  );
+  const featuredEvents = events.filter((e) => e.featured);
+
   const activeUsers = allUsers.filter((u) => u.isActive);
   const totalUsers = allUsers.length;
   const organizers = allUsers.filter((u) => u.role === UserRole.ORGANIZER);
@@ -135,7 +155,7 @@ export default function AdminDashboard() {
             </div>
             <div>
               <div className="text-2xl font-bold text-gray-900">
-                {events.length}
+                {eventsLoading ? "..." : totalEvents}
               </div>
               <div className="text-sm text-gray-600">Всего событий</div>
             </div>
@@ -237,7 +257,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <Link
           href="/admin/users"
-          className="bg-white border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition-colors"
+          className="bg-white border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition-colors group"
         >
           <div className="flex items-center gap-3 mb-2">
             <Users className="h-6 w-6 text-blue-600" />
@@ -245,29 +265,101 @@ export default function AdminDashboard() {
               Управление пользователями
             </span>
           </div>
-          <p className="text-gray-600 text-sm">
+          <p className="text-gray-600 text-sm mb-4">
             Просмотр, активация и управление всеми пользователями платформы
           </p>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <Users className="h-3 w-3" />
+              {totalUsers} пользователей
+            </div>
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <Clock className="h-3 w-3" />
+              {pendingUsers.length} ожидают
+            </div>
+          </div>
         </Link>
 
+        {/* ← ОБНОВЛЕННАЯ КАРТОЧКА УПРАВЛЕНИЯ СОБЫТИЯМИ */}
         <Link
           href="/admin/events"
-          className="bg-white border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition-colors"
+          className="bg-white border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition-colors group"
         >
-          <div className="flex items-center gap-3 mb-2">
-            <Calendar className="h-6 w-6 text-purple-600" />
-            <span className="text-lg font-semibold text-gray-900">
-              Все события
-            </span>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <Calendar className="h-6 w-6 text-purple-600" />
+              <span className="text-lg font-semibold text-gray-900">
+                Управление событиями
+              </span>
+            </div>
+            <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-gray-600" />
           </div>
-          <p className="text-gray-600 text-sm">
-            Модерация и управление всеми событиями на платформе
+          <p className="text-gray-600 text-sm mb-4">
+            Модерация статусов, публикация и управление всеми событиями
+            платформы
           </p>
+
+          {eventsLoading ? (
+            <div className="space-y-2">
+              <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse"></div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Статистика событий */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="text-gray-600">Опубликовано:</span>
+                  <span className="font-medium text-gray-900">
+                    {publishedEvents.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                  <span className="text-gray-600">Черновики:</span>
+                  <span className="font-medium text-gray-900">
+                    {draftEvents.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                  <span className="text-gray-600">Рекомендуемые:</span>
+                  <span className="font-medium text-gray-900">
+                    {featuredEvents.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                  <span className="text-gray-600">Отменены:</span>
+                  <span className="font-medium text-gray-900">
+                    {cancelledEvents.length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Быстрые действия */}
+              <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                <span className="text-xs text-gray-500">Всего:</span>
+                <span className="text-sm font-semibold text-purple-600">
+                  {totalEvents} событий
+                </span>
+                {draftEvents.length > 0 && (
+                  <>
+                    <span className="text-xs text-gray-400">•</span>
+                    <span className="text-xs text-orange-600">
+                      {draftEvents.length} требуют модерации
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </Link>
 
         <Link
           href="/admin/analytics"
-          className="bg-white border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition-colors"
+          className="bg-white border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition-colors group"
         >
           <div className="flex items-center gap-3 mb-2">
             <BarChart3 className="h-6 w-6 text-green-600" />
@@ -275,9 +367,19 @@ export default function AdminDashboard() {
               Аналитика
             </span>
           </div>
-          <p className="text-gray-600 text-sm">
+          <p className="text-gray-600 text-sm mb-4">
             Статистика использования платформы и популярности событий
           </p>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <Eye className="h-3 w-3" />
+              Просмотры
+            </div>
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <TrendingUp className="h-3 w-3" />
+              Тренды
+            </div>
+          </div>
         </Link>
       </div>
 

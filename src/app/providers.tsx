@@ -12,7 +12,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
+            // ВАЖНО: строгие настройки для предотвращения циклов
             refetchOnWindowFocus: false,
+            refetchOnMount: true,
+            refetchOnReconnect: false,
             retry: (failureCount, error) => {
               // Не повторяем запросы при 401 и 403 ошибках
               if (error && typeof error === "object" && "status" in error) {
@@ -20,9 +23,27 @@ export function Providers({ children }: { children: React.ReactNode }) {
                   return false;
                 }
               }
-              return failureCount < 3;
+              // Максимум 1 повтор для предотвращения циклов
+              return failureCount < 1;
             },
-            staleTime: 1000 * 60 * 5, // 5 минут
+            retryDelay: 2000, // 2 секунды между попытками
+            staleTime: 1000 * 60 * 5, // 5 минут - данные считаются свежими
+            gcTime: 1000 * 60 * 10, // 10 минут - время жизни в кеше
+            // Предотвращаем лишние рефетчи
+            refetchInterval: false,
+            refetchIntervalInBackground: false,
+          },
+          mutations: {
+            // Настройки для мутаций
+            retry: (failureCount, error) => {
+              if (error && typeof error === "object" && "status" in error) {
+                if (error.status === 401 || error.status === 403) {
+                  return false;
+                }
+              }
+              return failureCount < 1;
+            },
+            retryDelay: 1000,
           },
         },
       })
@@ -35,14 +56,27 @@ export function Providers({ children }: { children: React.ReactNode }) {
     setHasMounted(true);
   }, []);
 
+  // Debug информация только в development
+  useEffect(() => {
+    if (process.env.NODE_ENV === "development" && hasMounted) {
+      console.log("🔧 QueryClient инициализирован:", {
+        defaultOptions: queryClient.getDefaultOptions(),
+        queries: queryClient.getQueryCache().getAll().length,
+        mutations: queryClient.getMutationCache().getAll().length,
+      });
+    }
+  }, [hasMounted, queryClient]);
+
   return (
     <QueryClientProvider client={queryClient}>
       {children}
-      {/* Показываем девтулы только после гидратации */}
+
+      {/* Показываем девтулы только после гидратации и в development */}
       {hasMounted && process.env.NODE_ENV === "development" && (
-        <ReactQueryDevtools />
+        <ReactQueryDevtools initialIsOpen={false} />
       )}
-      {/* ToastContainer тоже только после гидратации */}
+
+      {/* ToastContainer только после гидратации */}
       {hasMounted && (
         <ToastContainer
           position="top-right"
@@ -56,6 +90,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           pauseOnHover
           theme="light"
           className="mt-16"
+          // Дополнительные настройки для предотвращения конфликтов
         />
       )}
     </QueryClientProvider>

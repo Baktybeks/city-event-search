@@ -1,4 +1,7 @@
-// src/hooks/useAuth.ts
+// src/hooks/useAuth.ts - ОБНОВЛЕННАЯ ВЕРСИЯ С ZUSTAND
+
+import { useAuthStore } from "@/store/authStore";
+import { useSyncAuthCookie } from "./useSyncAuthCookie";
 import {
   useCurrentUser,
   useLogin as useAppwriteLogin,
@@ -7,11 +10,11 @@ import {
   useUpdateCurrentUser as useAppwriteUpdateCurrentUser,
 } from "@/services/authService";
 import { UserRole, User } from "@/types";
+import { useEffect } from "react";
 
 // Типы для проверки пользователя
 type AuthenticatedUser = User & { id: string; name: string; role: UserRole };
 type NotActivatedUser = { notActivated: true };
-type UserResult = AuthenticatedUser | NotActivatedUser | null;
 
 // Type guards для проверки типов
 function isAuthenticatedUser(user: any): user is AuthenticatedUser {
@@ -32,24 +35,85 @@ function isNotActivatedUser(user: any): user is NotActivatedUser {
 }
 
 export function useAuth() {
-  const { data: user, isLoading, error, refetch } = useCurrentUser();
+  // Zustand store
+  const {
+    user: storeUser,
+    setUser,
+    clearUser,
+    updateUser,
+    setLoading,
+  } = useAuthStore();
+
+  // Синхронизация с cookies для middleware
+  useSyncAuthCookie();
+
+  // React Query для запросов к API
+  const {
+    data: queryUser,
+    isLoading: queryLoading,
+    error: queryError,
+    refetch,
+  } = useCurrentUser();
+
   const loginMutation = useAppwriteLogin();
   const logoutMutation = useAppwriteLogout();
   const registerMutation = useAppwriteRegister();
   const updateUserMutation = useAppwriteUpdateCurrentUser();
 
-  // Определяем тип пользователя
-  const isActiveUser = isAuthenticatedUser(user);
-  const isNotActivated = isNotActivatedUser(user);
+  // Синхронизация данных между React Query и Zustand
+  useEffect(() => {
+    if (queryUser && isAuthenticatedUser(queryUser)) {
+      // Если в React Query есть валидный пользователь, обновляем store
+      if (!storeUser || storeUser.$id !== queryUser.$id) {
+        console.log(
+          "🔄 Синхронизация: обновляем store из React Query:",
+          queryUser.name
+        );
+        setUser(queryUser);
+      }
+    } else if (queryUser === null && storeUser) {
+      // Если React Query вернул null, но в store есть пользователь - очищаем store
+      console.log("🔄 Синхронизация: очищаем store (React Query вернул null)");
+      clearUser();
+    }
+  }, [queryUser, storeUser, setUser, clearUser]);
+
+  // Определяем итоговое состояние
+  const user = storeUser;
+  const isAuthenticated = isAuthenticatedUser(user);
+  const isNotActivated = queryUser ? isNotActivatedUser(queryUser) : false;
+  const loading =
+    queryLoading ||
+    loginMutation.isPending ||
+    logoutMutation.isPending ||
+    registerMutation.isPending ||
+    updateUserMutation.isPending;
+
+  const userWithId = isAuthenticated
+    ? {
+        ...user,
+        id: user.$id,
+      }
+    : null;
 
   const login = async (email: string, password: string): Promise<User> => {
     try {
+      console.log("🔐 useAuth: Начинаем логин...");
+      setLoading(true);
+
       const result = await loginMutation.mutateAsync({ email, password });
-      // Обновляем кеш после успешного логина
-      await refetch();
+      console.log("✅ useAuth: Логин успешен, обновляем store:", result.name);
+
+      // Обновляем store сразу после успешного логина
+      setUser(result);
+
       return result;
     } catch (error) {
+      console.error("❌ useAuth: Ошибка логина:", error);
+      setLoading(false);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -60,85 +124,107 @@ export function useAuth() {
     role: UserRole
   ): Promise<User> => {
     try {
+      console.log("📝 useAuth: Начинаем регистрацию...");
+      setLoading(true);
+
       const result = await registerMutation.mutateAsync({
         name,
         email,
         password,
         role,
       });
-      // Обновляем кеш после успешной регистрации
-      await refetch();
+      console.log("✅ useAuth: Регистрация успешна:", result.name);
+
+      // НЕ обновляем store автоматически при регистрации
+      // (пользователь может быть не активирован)
+
       return result;
     } catch (error) {
+      console.error("❌ useAuth: Ошибка регистрации:", error);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
-  const updateUser = async (data: Partial<User>): Promise<User> => {
+  const updateUserData = async (data: Partial<User>): Promise<User> => {
     try {
+      console.log("🔄 useAuth: Обновляем пользователя...");
+
       const result = await updateUserMutation.mutateAsync(data);
-      // Кеш обновляется автоматически в мутации
+      console.log("✅ useAuth: Обновление успешно");
+
+      // Обновляем store
+      updateUser(data);
+
       return result;
     } catch (error) {
+      console.error("❌ useAuth: Ошибка обновления:", error);
       throw error;
     }
   };
 
   const logout = async (): Promise<void> => {
     try {
-      await logoutMutation.mutateAsync();
-      // Принудительно обновляем состояние после выхода
-      await refetch();
-    } catch (error) {
-      console.error("Ошибка при выходе:", error);
-      throw error;
-    }
-  };
+      console.log("🚪 useAuth: Выходим из системы...");
+      setLoading(true);
 
-  const clearError = () => {
-    // React Query автоматически управляет ошибками
-    // Можно добавить дополнительную логику при необходимости
+      await logoutMutation.mutateAsync();
+      console.log("✅ useAuth: Выход успешен, очищаем store");
+
+      // Очищаем store (что автоматически очистит cookie)
+      clearUser();
+
+      // Перенаправляем на главную страницу
+      console.log("🏠 useAuth: Перенаправляем на главную страницу");
+      window.location.href = "/";
+    } catch (error) {
+      console.error("❌ useAuth: Ошибка выхода:", error);
+      // Даже при ошибке очищаем локальные данные и перенаправляем
+      clearUser();
+      console.log("🏠 useAuth: Перенаправляем на главную (после ошибки)");
+      window.location.href = "/";
+      throw error;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const checkAuthState = () => {
+    console.log("🔧 useAuth: Принудительная проверка состояния");
     refetch();
   };
 
-  // Добавляем функцию для получения пользователя с дополнительной информацией
-  const getUserWithId = (): (User & { id: string }) | null => {
-    if (isActiveUser) {
-      return {
-        ...user,
-        id: user.$id,
-      };
-    }
-    return null;
-  };
+  // Ошибки
+  const error =
+    queryError?.message ||
+    loginMutation.error?.message ||
+    logoutMutation.error?.message ||
+    registerMutation.error?.message ||
+    updateUserMutation.error?.message ||
+    null;
 
   return {
-    user: getUserWithId(),
-    loading:
-      isLoading ||
-      loginMutation.isPending ||
-      logoutMutation.isPending ||
-      registerMutation.isPending ||
-      updateUserMutation.isPending,
-    error:
-      error?.message ||
-      loginMutation.error?.message ||
-      logoutMutation.error?.message ||
-      registerMutation.error?.message ||
-      updateUserMutation.error?.message ||
-      null,
-    isNotActivated: isNotActivated,
+    // Основные данные
+    user: userWithId,
+    loading,
+    error,
+
+    // Состояния
+    isAuthenticated,
+    isNotActivated,
+    userRole: user?.role || null,
+
+    // Методы
     login,
     register,
-    updateUser,
+    updateUser: updateUserData,
     logout,
-    clearError,
     checkAuthState,
+
     // Дополнительные утилиты
-    isAuthenticated: isActiveUser,
-    userRole: isActiveUser ? user.role : null,
+    clearError: () => {
+      console.log("🔧 useAuth: Очистка ошибок");
+    },
   };
 }

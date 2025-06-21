@@ -163,6 +163,7 @@ export interface EventFilters {
   endDate?: string;
   location?: string;
   featured?: boolean;
+  status?: EventStatus;
 }
 
 export interface EventWithDetails extends Event {
@@ -199,7 +200,7 @@ export const formatPrice = (
 ): string => {
   if (isFree) return "Бесплатно";
   if (!price) return "Цена не указана";
-  return `${price} руб.`;
+  return `${price} сом`;
 };
 
 export const isEventPast = (

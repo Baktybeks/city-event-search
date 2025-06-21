@@ -1,6 +1,7 @@
+// src/app/layout.tsx
 import "./globals.css";
 import { Providers } from "./providers";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
   title: "EventCity - Найди свое событие",
@@ -26,15 +27,17 @@ export const metadata: Metadata = {
     title: "EventCity - Найди свое событие",
     description: "Лучшие мероприятия твоего города в одном месте",
   },
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-  },
   robots: {
     index: true,
     follow: true,
   },
+};
+
+// ИСПРАВЛЕНО: viewport вынесен в отдельный экспорт согласно требованиям Next.js 15
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({

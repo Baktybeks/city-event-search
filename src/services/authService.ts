@@ -2,7 +2,6 @@ import { appwriteConfig } from "@/constants/appwriteConfig";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Client, Account, ID, Databases, Query } from "appwrite";
 import { User, UserRole } from "@/types";
-import React from "react"; // Добавляем импорт React
 
 const {
   projectId: PROJECT_ID,
@@ -51,7 +50,7 @@ export const authApi = {
           "❌ getCurrentUser: Неожиданная ошибка при получении сессии:",
           err
         );
-        return null; // Возвращаем null вместо выброса ошибки
+        return null;
       }
 
       if (!session) {
@@ -106,7 +105,6 @@ export const authApi = {
     try {
       console.log(`Регистрация пользователя: ${email}...`);
 
-      // Проверяем, есть ли администраторы в системе
       const adminCheck = await database.listDocuments(
         DATABASE_ID,
         collections.users,
@@ -116,10 +114,8 @@ export const authApi = {
       const finalRole =
         adminCheck.total === 0 ? UserRole.ADMIN : role || UserRole.USER;
 
-      // Создаем пользователя в Appwrite Auth
       const authUser = await account.create(ID.unique(), email, password, name);
 
-      // Создаем документ пользователя в базе данных
       const userData = {
         name,
         email,
@@ -136,11 +132,6 @@ export const authApi = {
       );
 
       console.log("Пользователь успешно зарегистрирован:", user.$id);
-      if (finalRole === UserRole.ADMIN) {
-        console.log(
-          "Пользователь назначен администратором (первый пользователь в системе)"
-        );
-      }
       return user as unknown as User;
     } catch (error) {
       console.error("Ошибка при регистрации пользователя:", error);
@@ -152,17 +143,11 @@ export const authApi = {
     try {
       console.log(`Вход пользователя: ${email}...`);
 
-      // Проверяем существующую сессию
-      let existingUser = null;
+      // Удаляем существующую сессию если есть
       try {
-        existingUser = await authApi.getCurrentUser();
-      } catch (e) {
-        // Продолжаем, если ошибка
-      }
-
-      // Если сессия существует, удаляем её
-      if (existingUser) {
         await account.deleteSession("current");
+      } catch (e) {
+        // Игнорируем ошибку если сессии нет
       }
 
       // Создаем новую сессию
@@ -171,7 +156,6 @@ export const authApi = {
       // Проверяем данные пользователя
       const userResult = await authApi.getCurrentUser();
 
-      // Обработка неактивированного пользователя
       if (
         userResult &&
         typeof userResult === "object" &&
@@ -203,19 +187,16 @@ export const authApi = {
     }
   },
 
-  // Добавляем функцию обновления текущего пользователя
   updateCurrentUser: async (data: Partial<User>): Promise<User> => {
     try {
       console.log("Обновление данных текущего пользователя...");
 
-      // Получаем текущего пользователя
       const currentUser = await authApi.getCurrentUser();
 
       if (!currentUser || "notActivated" in currentUser) {
         throw new Error("Пользователь не авторизован");
       }
 
-      // Обновляем данные пользователя в базе данных
       const updatedUser = await database.updateDocument(
         DATABASE_ID,
         collections.users,
@@ -275,46 +256,27 @@ export const authKeys = {
   usersByRole: (role: UserRole) => [...authKeys.users(), role] as const,
 };
 
-// React Query хуки
+// ИСПРАВЛЕННЫЙ useCurrentUser без debug useEffect
 export const useCurrentUser = () => {
-  const query = useQuery<GetUserResult>({
+  return useQuery<GetUserResult>({
     queryKey: authKeys.user(),
     queryFn: authApi.getCurrentUser,
     staleTime: 1000 * 60 * 5, // 5 минут
-    gcTime: 1000 * 60 * 10, // 10 минут (заменяет cacheTime)
+    gcTime: 1000 * 60 * 10, // 10 минут
     retry: (failureCount, error) => {
       console.log("🔄 useCurrentUser retry:", failureCount, error);
-      // Ограничиваем количество попыток
+      // Только 1 повтор при ошибке сети, не повторяем при 401 ошибках
+      if (error && (error as any).code === 401) {
+        return false;
+      }
       return failureCount < 1;
     },
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
+    retryDelay: 2000, // 2 секунды между попытками
+    refetchOnWindowFocus: false, // ВАЖНО: не перезапрашиваем при фокусе
+    refetchOnMount: false, // ВАЖНО: не перезапрашиваем при монтировании каждый раз
+    refetchOnReconnect: false, // Не перезапрашиваем при восстановлении сети
+    refetchInterval: false, // Отключаем автоматические перезапросы
   });
-
-  // Добавляем отладку
-  React.useEffect(() => {
-    console.log("📊 useCurrentUser state:", {
-      isLoading: query.isLoading,
-      isFetching: query.isFetching,
-      data: query.data,
-      error: query.error,
-      status: query.status,
-      failureCount: query.failureCount,
-      isStale: query.isStale,
-    });
-  }, [
-    query.isLoading,
-    query.isFetching,
-    query.data,
-    query.error,
-    query.status,
-    query.failureCount,
-    query.isStale,
-  ]);
-
-  return query;
 };
 
 export const useRegister = () => {
@@ -338,6 +300,7 @@ export const useRegister = () => {
   });
 };
 
+// ИСПРАВЛЕННЫЙ useLogin - БЕЗ инвалидации кеша
 export const useLogin = () => {
   const queryClient = useQueryClient();
 
@@ -345,32 +308,43 @@ export const useLogin = () => {
     mutationFn: ({ email, password }: { email: string; password: string }) =>
       authApi.login(email, password),
     onSuccess: (data) => {
-      // Обновляем кеш пользователя
+      console.log("✅ Login успешен, устанавливаем данные в кеш:", data.name);
+      // ТОЛЬКО устанавливаем данные в кеш, БЕЗ инвалидации
       queryClient.setQueryData(authKeys.user(), data);
-      // Инвалидируем связанные запросы
-      queryClient.invalidateQueries({ queryKey: authKeys.user() });
+
+      // НЕ вызываем invalidateQueries - это может вызвать циклы
+      // queryClient.invalidateQueries({ queryKey: authKeys.user() });
     },
     onError: (error) => {
-      console.error("Login mutation error:", error);
+      console.error("❌ Login ошибка:", error);
       // Очищаем кеш при ошибке
       queryClient.setQueryData(authKeys.user(), null);
     },
   });
 };
 
+// ИСПРАВЛЕННЫЙ useLogout
 export const useLogout = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: authApi.logout,
     onSuccess: () => {
+      console.log("✅ Logout успешен, очищаем кеш");
+      // Сначала очищаем данные пользователя
       queryClient.setQueryData(authKeys.user(), null);
+      // Затем очищаем весь кеш
       queryClient.clear();
+    },
+    onError: (error) => {
+      console.error("❌ Logout ошибка:", error);
+      // Даже при ошибке очищаем локальный кеш
+      queryClient.setQueryData(authKeys.user(), null);
     },
   });
 };
 
-// Добавляем хук для обновления текущего пользователя
+// ИСПРАВЛЕННЫЙ useUpdateCurrentUser
 export const useUpdateCurrentUser = () => {
   const queryClient = useQueryClient();
 
@@ -379,8 +353,7 @@ export const useUpdateCurrentUser = () => {
     onSuccess: (updatedUser) => {
       // Обновляем кеш текущего пользователя
       queryClient.setQueryData(authKeys.user(), updatedUser);
-      // Инвалидируем связанные запросы
-      queryClient.invalidateQueries({ queryKey: authKeys.user() });
+      // НЕ инвалидируем кеш пользователя, только список пользователей
       queryClient.invalidateQueries({ queryKey: authKeys.users() });
     },
     onError: (error) => {

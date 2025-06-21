@@ -389,7 +389,161 @@ export const eventsApi = {
       throw error;
     }
   },
+  getAllEventsForAdmin: async (
+    filters?: EventFilters,
+    limit = 20,
+    offset = 0
+  ) => {
+    try {
+      const queries = [
+        Query.limit(limit),
+        Query.offset(offset),
+        Query.orderDesc("$createdAt"),
+        // НЕ фильтруем по статусу - показываем все события
+      ];
 
+      if (filters?.search) {
+        queries.push(Query.search("title", filters.search));
+      }
+
+      if (filters?.category) {
+        queries.push(Query.equal("category", filters.category));
+      }
+
+      if (filters?.isFree !== undefined) {
+        queries.push(Query.equal("isFree", filters.isFree));
+      }
+
+      if (filters?.startDate) {
+        queries.push(Query.greaterThanEqual("startDate", filters.startDate));
+      }
+
+      if (filters?.endDate) {
+        queries.push(Query.lessThanEqual("startDate", filters.endDate));
+      }
+
+      if (filters?.location) {
+        queries.push(Query.search("location", filters.location));
+      }
+
+      if (filters?.featured) {
+        queries.push(Query.equal("featured", filters.featured));
+      }
+
+      // Фильтр по статусу (если указан)
+      if (filters?.status) {
+        queries.push(Query.equal("status", filters.status));
+      }
+
+      const result = await databases.listDocuments(
+        DATABASE_ID,
+        collections.events,
+        queries
+      );
+
+      return {
+        events: result.documents as unknown as Event[],
+        total: result.total,
+      };
+    } catch (error) {
+      console.error("Ошибка при получении событий для админа:", error);
+      throw error;
+    }
+  },
+  publishEvent: async (eventId: string): Promise<Event> => {
+    try {
+      const result = await databases.updateDocument(
+        DATABASE_ID,
+        collections.events,
+        eventId,
+        { status: EventStatus.PUBLISHED }
+      );
+
+      console.log("✅ Событие опубликовано:", result.title);
+      return result as unknown as Event;
+    } catch (error) {
+      console.error("Ошибка при публикации события:", error);
+      throw error;
+    }
+  },
+
+  // Снятие с публикации
+  unpublishEvent: async (eventId: string): Promise<Event> => {
+    try {
+      const result = await databases.updateDocument(
+        DATABASE_ID,
+        collections.events,
+        eventId,
+        { status: EventStatus.DRAFT }
+      );
+
+      console.log("✅ Событие снято с публикации:", result.title);
+      return result as unknown as Event;
+    } catch (error) {
+      console.error("Ошибка при снятии с публикации:", error);
+      throw error;
+    }
+  },
+
+  // Отмена события
+  cancelEvent: async (eventId: string): Promise<Event> => {
+    try {
+      const result = await databases.updateDocument(
+        DATABASE_ID,
+        collections.events,
+        eventId,
+        { status: EventStatus.CANCELLED }
+      );
+
+      console.log("✅ Событие отменено:", result.title);
+      return result as unknown as Event;
+    } catch (error) {
+      console.error("Ошибка при отмене события:", error);
+      throw error;
+    }
+  },
+
+  // Завершение события
+  completeEvent: async (eventId: string): Promise<Event> => {
+    try {
+      const result = await databases.updateDocument(
+        DATABASE_ID,
+        collections.events,
+        eventId,
+        { status: EventStatus.COMPLETED }
+      );
+
+      console.log("✅ Событие завершено:", result.title);
+      return result as unknown as Event;
+    } catch (error) {
+      console.error("Ошибка при завершении события:", error);
+      throw error;
+    }
+  },
+
+  // Переключение featured статуса
+  toggleEventFeatured: async (
+    eventId: string,
+    featured: boolean
+  ): Promise<Event> => {
+    try {
+      const result = await databases.updateDocument(
+        DATABASE_ID,
+        collections.events,
+        eventId,
+        { featured }
+      );
+
+      console.log(
+        `✅ Событие ${featured ? "добавлено в" : "убрано из"} рекомендуемых:`,
+        result.title
+      );
+      return result as unknown as Event;
+    } catch (error) {
+      console.error("Ошибка при изменении featured статуса:", error);
+      throw error;
+    }
+  },
   // Регистрация просмотра события
   recordEventView: async (
     eventId: string,
@@ -429,6 +583,8 @@ export const eventsApi = {
 
 // Ключи для React Query
 export const eventsKeys = {
+  adminList: (filters?: EventFilters) =>
+    [...eventsKeys.all, "admin-list", filters] as const,
   all: ["events"] as const,
   lists: () => [...eventsKeys.all, "list"] as const,
   list: (filters?: EventFilters) => [...eventsKeys.lists(), filters] as const,
@@ -604,5 +760,226 @@ export const useUserFavorites = (userId: string) => {
     queryKey: eventsKeys.favorites(userId),
     queryFn: () => eventsApi.getUserFavorites(userId),
     enabled: !!userId,
+  });
+};
+
+export const useAdminEvents = (filters?: EventFilters) => {
+  return useInfiniteQuery({
+    queryKey: eventsKeys.adminList(filters),
+    queryFn: ({ pageParam = 0 }) =>
+      eventsApi.getAllEventsForAdmin(filters, 20, pageParam * 20),
+    getNextPageParam: (lastPage, pages) => {
+      const totalLoaded = pages.length * 20;
+      return totalLoaded < lastPage.total ? pages.length : undefined;
+    },
+    initialPageParam: 0,
+    staleTime: 0, // Данные считаются устаревшими сразу
+    gcTime: 0, // Не кешируем данные в garbage collection
+    refetchOnMount: true, // Всегда перезапрашиваем при монтировании
+    refetchOnWindowFocus: true, // Перезапрашиваем при фокусе окна
+    refetchOnReconnect: true, // Перезапрашиваем при восстановлении сети
+    retry: false,
+  });
+};
+
+export const usePublishEvent = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (eventId: string) => eventsApi.publishEvent(eventId),
+    onSuccess: (updatedEvent, eventId) => {
+      console.log("✅ Событие опубликовано, обновляем кеш");
+
+      // Инвалидируем ВСЕ связанные кеши
+      queryClient.invalidateQueries({ queryKey: eventsKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: eventsKeys.adminList() });
+      queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) });
+      queryClient.invalidateQueries({ queryKey: eventsKeys.featured() });
+
+      // Также обновляем данные напрямую в кеше админских событий
+      queryClient.setQueriesData(
+        { queryKey: eventsKeys.adminList() },
+        (oldData: any) => {
+          if (!oldData) return oldData;
+
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page: any) => ({
+              ...page,
+              events: page.events.map((event: any) =>
+                event.$id === eventId
+                  ? { ...event, status: EventStatus.PUBLISHED }
+                  : event
+              ),
+            })),
+          };
+        }
+      );
+    },
+    onError: (error) => {
+      console.error("❌ Ошибка публикации:", error);
+    },
+  });
+};
+
+export const useUnpublishEvent = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (eventId: string) => eventsApi.unpublishEvent(eventId),
+    onSuccess: (updatedEvent, eventId) => {
+      console.log("✅ Событие снято с публикации, обновляем кеш");
+
+      // Инвалидируем ВСЕ связанные кеши
+      queryClient.invalidateQueries({ queryKey: eventsKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: eventsKeys.adminList() });
+      queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) });
+      queryClient.invalidateQueries({ queryKey: eventsKeys.featured() });
+
+      // Обновляем данные напрямую в кеше
+      queryClient.setQueriesData(
+        { queryKey: eventsKeys.adminList() },
+        (oldData: any) => {
+          if (!oldData) return oldData;
+
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page: any) => ({
+              ...page,
+              events: page.events.map((event: any) =>
+                event.$id === eventId
+                  ? { ...event, status: EventStatus.DRAFT }
+                  : event
+              ),
+            })),
+          };
+        }
+      );
+    },
+    onError: (error) => {
+      console.error("❌ Ошибка снятия с публикации:", error);
+    },
+  });
+};
+
+export const useCancelEvent = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (eventId: string) => eventsApi.cancelEvent(eventId),
+    onSuccess: (updatedEvent, eventId) => {
+      console.log("✅ Событие отменено, обновляем кеш");
+
+      // Инвалидируем ВСЕ связанные кеши
+      queryClient.invalidateQueries({ queryKey: eventsKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: eventsKeys.adminList() });
+      queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) });
+
+      // Обновляем данные напрямую в кеше
+      queryClient.setQueriesData(
+        { queryKey: eventsKeys.adminList() },
+        (oldData: any) => {
+          if (!oldData) return oldData;
+
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page: any) => ({
+              ...page,
+              events: page.events.map((event: any) =>
+                event.$id === eventId
+                  ? { ...event, status: EventStatus.CANCELLED }
+                  : event
+              ),
+            })),
+          };
+        }
+      );
+    },
+    onError: (error) => {
+      console.error("❌ Ошибка отмены события:", error);
+    },
+  });
+};
+
+export const useCompleteEvent = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (eventId: string) => eventsApi.completeEvent(eventId),
+    onSuccess: (updatedEvent, eventId) => {
+      console.log("✅ Событие завершено, обновляем кеш");
+
+      // Инвалидируем ВСЕ связанные кеши
+      queryClient.invalidateQueries({ queryKey: eventsKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: eventsKeys.adminList() });
+      queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) });
+
+      // Обновляем данные напрямую в кеше
+      queryClient.setQueriesData(
+        { queryKey: eventsKeys.adminList() },
+        (oldData: any) => {
+          if (!oldData) return oldData;
+
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page: any) => ({
+              ...page,
+              events: page.events.map((event: any) =>
+                event.$id === eventId
+                  ? { ...event, status: EventStatus.COMPLETED }
+                  : event
+              ),
+            })),
+          };
+        }
+      );
+    },
+    onError: (error) => {
+      console.error("❌ Ошибка завершения события:", error);
+    },
+  });
+};
+
+export const useToggleEventFeatured = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      eventId,
+      featured,
+    }: {
+      eventId: string;
+      featured: boolean;
+    }) => eventsApi.toggleEventFeatured(eventId, featured),
+    onSuccess: (updatedEvent, { eventId, featured }) => {
+      console.log(`✅ Статус featured изменен на ${featured}, обновляем кеш`);
+
+      // Инвалидируем ВСЕ связанные кеши
+      queryClient.invalidateQueries({ queryKey: eventsKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: eventsKeys.adminList() });
+      queryClient.invalidateQueries({ queryKey: eventsKeys.detail(eventId) });
+      queryClient.invalidateQueries({ queryKey: eventsKeys.featured() });
+
+      // Обновляем данные напрямую в кеше
+      queryClient.setQueriesData(
+        { queryKey: eventsKeys.adminList() },
+        (oldData: any) => {
+          if (!oldData) return oldData;
+
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page: any) => ({
+              ...page,
+              events: page.events.map((event: any) =>
+                event.$id === eventId ? { ...event, featured } : event
+              ),
+            })),
+          };
+        }
+      );
+    },
+    onError: (error) => {
+      console.error("❌ Ошибка изменения featured статуса:", error);
+    },
   });
 };

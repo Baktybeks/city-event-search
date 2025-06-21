@@ -340,7 +340,7 @@ export default function CreateEventPage() {
               {!formData.isFree && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Стоимость участия (руб.)
+                    Стоимость участия (сом)
                   </label>
                   <input
                     type="number"
