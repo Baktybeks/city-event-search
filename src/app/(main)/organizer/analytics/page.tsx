@@ -252,7 +252,7 @@ export default function OrganizerAnalyticsPage() {
                         case EventStatus.PUBLISHED:
                           return "Опубликовано";
                         case EventStatus.DRAFT:
-                          return "Черновики";
+                          return "Ожидаемые";
                         case EventStatus.CANCELLED:
                           return "Отменено";
                         case EventStatus.COMPLETED:
@@ -337,7 +337,7 @@ export default function OrganizerAnalyticsPage() {
                         <Calendar className="h-5 w-5 text-orange-600 mt-0.5" />
                         <div>
                           <p className="text-sm font-medium text-orange-900">
-                            Опубликуйте черновики
+                            Опубликуйте ожидаемые
                           </p>
                           <p className="text-xs text-orange-700">
                             У вас есть {eventsByStatus[EventStatus.DRAFT]}{" "}

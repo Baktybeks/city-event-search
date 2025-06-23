@@ -39,7 +39,7 @@ function LoginNotifications() {
           "⏳ Регистрация завершена! Ваш аккаунт ожидает активации администратором.",
           {
             position: "top-center",
-            autoClose: 8000,
+            autoClose: 15000,
           }
         );
       } else {

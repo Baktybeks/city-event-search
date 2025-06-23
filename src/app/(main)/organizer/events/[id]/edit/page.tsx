@@ -167,7 +167,7 @@ export default function EditEventPage() {
         newStatus === EventStatus.PUBLISHED
           ? "Событие опубликовано!"
           : newStatus === EventStatus.DRAFT
-          ? "Событие сохранено как черновик"
+          ? "Событие сохранено как ожидаемый"
           : "Событие обновлено успешно!";
 
       toast.success(statusMessage);
@@ -237,7 +237,7 @@ export default function EditEventPage() {
                 {event.status === EventStatus.PUBLISHED
                   ? "Опубликовано"
                   : event.status === EventStatus.DRAFT
-                  ? "Черновик"
+                  ? "Ожидаемый"
                   : event.status}
               </span>
             </div>
@@ -395,16 +395,6 @@ export default function EditEventPage() {
             </div>
 
             <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={(e) => handleSubmit(e, EventStatus.DRAFT)}
-                disabled={updateEventMutation.isPending}
-                className="px-6 py-3 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-2"
-              >
-                <Save className="h-4 w-4" />
-                Сохранить как черновик
-              </button>
-
               <button
                 type="submit"
                 disabled={updateEventMutation.isPending}

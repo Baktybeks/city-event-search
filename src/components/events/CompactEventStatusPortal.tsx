@@ -57,7 +57,7 @@ export function CompactEventStatusPortal({ event }: CompactEventStatusProps) {
     switch (status) {
       case EventStatus.DRAFT:
         return {
-          label: "Черновик",
+          label: "Ожидаемый",
           icon: Clock,
           className: "bg-gray-100 text-gray-700 border-gray-200",
         };
@@ -232,7 +232,7 @@ export function CompactEventStatusPortal({ event }: CompactEventStatusProps) {
                       onClick={() => handleStatusChange(EventStatus.DRAFT)}
                       className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-800 flex items-center gap-2 transition-colors"
                     >
-                      <EyeOff className="h-4 w-4 text-gray-500" />В черновики
+                      <EyeOff className="h-4 w-4 text-gray-500" />В ожидаемые
                     </button>
                     <button
                       onClick={() => handleStatusChange(EventStatus.COMPLETED)}
@@ -273,7 +273,7 @@ export function CompactEventStatusPortal({ event }: CompactEventStatusProps) {
                       className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-800 flex items-center gap-2 transition-colors"
                     >
                       <Clock className="h-4 w-4 text-gray-500" />
-                      Вернуть в черновики
+                      Вернуть в ожидаемые
                     </button>
                     <button
                       onClick={() => handleStatusChange(EventStatus.PUBLISHED)}

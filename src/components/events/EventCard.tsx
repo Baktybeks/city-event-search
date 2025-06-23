@@ -88,7 +88,7 @@ export function EventCard({
                 <span className="truncate">{event.location}</span>
               </div>
             </div>
-            <div className="text-sm font-semibold text-blue-600">
+            <div className="text-sm font-semibold text-blue-600  w-20">
               {formatPrice(event.price, event.isFree)}
             </div>
           </div>

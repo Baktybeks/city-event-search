@@ -169,7 +169,7 @@ export function EventDetail({
             <DollarSign className="h-5 w-5 text-gray-400 mt-0.5" />
             <div>
               <div className="font-medium text-gray-900">Стоимость</div>
-              <div className="text-sm font-semibold text-blue-600">
+              <div className="text-sm font-semibold text-blue-600 w-20">
                 {formatPrice(event.price, event.isFree)}
               </div>
             </div>

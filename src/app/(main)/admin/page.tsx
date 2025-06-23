@@ -317,7 +317,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                  <span className="text-gray-600">Черновики:</span>
+                  <span className="text-gray-600">Ожидаемые:</span>
                   <span className="font-medium text-gray-900">
                     {draftEvents.length}
                   </span>

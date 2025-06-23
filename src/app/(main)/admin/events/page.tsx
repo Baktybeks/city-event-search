@@ -144,7 +144,7 @@ export default function AdminEventsPage() {
               <div className="text-2xl font-bold text-gray-900">
                 {events.filter((e) => e.status === "DRAFT").length}
               </div>
-              <div className="text-sm text-gray-600">Черновиков</div>
+              <div className="text-sm text-gray-600">Ожидаемых</div>
             </div>
           </div>
         </div>

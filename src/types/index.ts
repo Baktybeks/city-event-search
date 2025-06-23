@@ -65,7 +65,7 @@ export enum EventStatus {
 }
 
 export const EventStatusLabels: Record<EventStatus, string> = {
-  [EventStatus.DRAFT]: "Черновик",
+  [EventStatus.DRAFT]: "Ожидаемый",
   [EventStatus.PUBLISHED]: "Опубликовано",
   [EventStatus.CANCELLED]: "Отменено",
   [EventStatus.COMPLETED]: "Завершено",

@@ -31,7 +31,9 @@ export default function OrganizerDashboard() {
     (event) => event.status === EventStatus.PUBLISHED
   );
   const draftEvents = events.filter(
-    (event) => event.status === EventStatus.DRAFT
+    (event) =>
+      event.status === EventStatus.DRAFT ||
+      event.status === EventStatus.CANCELLED
   );
   const totalViews = events.reduce(
     (sum, event) => sum + (event.viewCount || 0),
@@ -88,7 +90,7 @@ export default function OrganizerDashboard() {
               <div className="text-2xl font-bold text-gray-900">
                 {draftEvents.length}
               </div>
-              <div className="text-sm text-gray-600">Черновики</div>
+              <div className="text-sm text-gray-600">Ожидаемые</div>
             </div>
           </div>
         </div>
@@ -185,7 +187,7 @@ export default function OrganizerDashboard() {
                 <div className="mb-8">
                   <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
                     <Clock className="h-5 w-5 text-yellow-600" />
-                    Черновики ({draftEvents.length})
+                    Ожидаемые ({draftEvents.length})
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {draftEvents.map((event) => (
@@ -201,7 +203,7 @@ export default function OrganizerDashboard() {
                         </div>
                         <div className="absolute top-2 left-2">
                           <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
-                            Черновик
+                            Ожидаемый
                           </span>
                         </div>
                       </div>

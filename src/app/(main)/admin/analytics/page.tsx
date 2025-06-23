@@ -342,7 +342,7 @@ export default function AdminAnalyticsPage() {
                   case EventStatus.PUBLISHED:
                     return "Опубликовано";
                   case EventStatus.DRAFT:
-                    return "Черновики";
+                    return "Ожидаемые";
                   case EventStatus.CANCELLED:
                     return "Отменено";
                   case EventStatus.COMPLETED:

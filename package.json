@@ -10,6 +10,7 @@
     "db:test": "node scripts/testConnection.js",
     "db:setup": "node scripts/setupCollections.js setup",
     "db:reset": "node scripts/setupCollections.js reset",
+    "db:deleteAttribute": "node scripts/setupCollections.js deleteAttribute",
     "db:reset-setup": "node scripts/setupCollections.js reset-setup"
   },
   "dependencies": {

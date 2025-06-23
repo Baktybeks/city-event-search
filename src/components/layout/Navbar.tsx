@@ -40,7 +40,7 @@ export function Navbar() {
   if (user?.role === UserRole.ORGANIZER) {
     userNavigation.unshift({
       name: "Мои события",
-      href: "/organizer/events",
+      href: "/organizer",
       icon: Calendar,
     });
     userNavigation.unshift({

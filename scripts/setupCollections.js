@@ -394,6 +394,22 @@ const resetCollections = async () => {
   }
 };
 
+const deleteAttribute = async () => {
+  const databaseId = appwriteConfig.databaseId;
+  const collectionId = appwriteConfig.collections.users; // например, users
+  const attributeId = "profileData"; // тут укажи свой зависший атрибут
+
+  try {
+    await databases.deleteAttribute(databaseId, collectionId, attributeId);
+    console.log(`✅ Атрибут "${attributeId}" успешно удалён`);
+  } catch (error) {
+    console.error(
+      `❌ Ошибка при удалении атрибута "${attributeId}":`,
+      error.message
+    );
+  }
+};
+
 const checkEnvironment = () => {
   const required = [
     "NEXT_PUBLIC_APPWRITE_ENDPOINT",
@@ -427,6 +443,10 @@ const main = async () => {
       break;
     case "reset":
       await resetCollections();
+      break;
+      break;
+    case "deleteAttribute":
+      await deleteAttribute();
       break;
     case "reset-setup":
       await resetCollections();

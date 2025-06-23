@@ -44,7 +44,7 @@ export function AdminEventStatusBadge({
     switch (status) {
       case EventStatus.DRAFT:
         return {
-          label: "Черновик",
+          label: "Ожидаемый",
           icon: Clock,
           className: "bg-gray-100 text-gray-700 border-gray-200",
           badgeColor: "gray",
@@ -273,7 +273,7 @@ export function AdminEventStatusBadge({
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                 >
                   <Clock className="h-4 w-4 text-gray-500" />
-                  Восстановить как черновик
+                  Восстановить как Ожидаемый
                 </button>
               )}
             </div>

@@ -90,7 +90,7 @@ export default function CreateEventPage() {
       });
 
       toast.success(
-        asDraft ? "Событие сохранено как черновик" : "Событие создано успешно!"
+        asDraft ? "Событие сохранено как ожидаемое" : "Событие создано успешно!"
       );
 
       router.push("/organizer");
@@ -509,20 +509,6 @@ export default function CreateEventPage() {
             </button>
 
             <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={(e) => handleSubmit(e, true)}
-                disabled={createEventMutation.isPending}
-                className="px-6 py-3 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {createEventMutation.isPending ? (
-                  <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
-                Сохранить как черновик
-              </button>
-
               <button
                 type="submit"
                 disabled={createEventMutation.isPending}
