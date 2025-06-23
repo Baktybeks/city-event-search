@@ -24,34 +24,20 @@ const { databaseId: DATABASE_ID, collections } = appwriteConfig;
 
 export const eventsApi = {
   // Получение всех событий с фильтрацией
+  // Замените функцию getEvents в src/services/eventsService.ts
+
   getEvents: async (filters?: EventFilters, limit = 20, offset = 0) => {
     try {
+      console.log("🔍 getEvents вызван с фильтрами:", filters);
+
+      // Базовые запросы БЕЗ поиска - получаем все опубликованные события
       const queries = [
-        Query.limit(limit),
-        Query.offset(offset),
         Query.orderDesc("$createdAt"),
         Query.equal("status", EventStatus.PUBLISHED),
+        // Убираем limit и offset - получим все события для клиентской фильтрации
       ];
 
-      // Поиск по тексту - ищем в title, description
-      if (filters?.search) {
-        const searchTerm = filters.search.trim();
-        if (searchTerm) {
-          // Используем OR запрос для поиска по нескольким полям
-          // Сначала попробуем поиск по title
-          try {
-            queries.push(Query.search("title", searchTerm));
-          } catch (error) {
-            console.warn(
-              "Fulltext поиск недоступен, используем альтернативный метод"
-            );
-            // Если fulltext недоступен, используем contains (работает не для всех случаев)
-            // В продакшене лучше настроить fulltext индексы
-            queries.push(Query.contains("title", searchTerm));
-          }
-        }
-      }
-
+      // Применяем только серверные фильтры (которые точно работают)
       if (filters?.category) {
         queries.push(Query.equal("category", filters.category));
       }
@@ -60,6 +46,11 @@ export const eventsApi = {
         queries.push(Query.equal("isFree", filters.isFree));
       }
 
+      if (filters?.featured) {
+        queries.push(Query.equal("featured", filters.featured));
+      }
+
+      // Фильтры по дате (серверные)
       if (filters?.startDate) {
         queries.push(Query.greaterThanEqual("startDate", filters.startDate));
       }
@@ -68,31 +59,79 @@ export const eventsApi = {
         queries.push(Query.lessThanEqual("startDate", filters.endDate));
       }
 
-      // Для поиска по локации тоже используем fulltext или contains
-      if (filters?.location) {
-        try {
-          queries.push(Query.search("location", filters.location));
-        } catch (error) {
-          queries.push(Query.contains("location", filters.location));
-        }
-      }
+      console.log("📡 Получаем все события из Appwrite...");
 
-      if (filters?.featured) {
-        queries.push(Query.equal("featured", filters.featured));
-      }
-
+      // Получаем ВСЕ события (без лимита для поиска)
       const result = await databases.listDocuments(
         DATABASE_ID,
         collections.events,
         queries
       );
 
+      let events = result.documents as unknown as Event[];
+      console.log(`📊 Получили ${events.length} событий из базы`);
+
+      // КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ
+      let filteredEvents = [...events];
+
+      // Поиск по тексту (клиентский)
+      if (filters?.search) {
+        const searchTerm = filters.search.trim().toLowerCase();
+        console.log(`🔍 Клиентский поиск по: "${searchTerm}"`);
+
+        filteredEvents = filteredEvents.filter((event) => {
+          return (
+            event.title.toLowerCase().includes(searchTerm) ||
+            event.description.toLowerCase().includes(searchTerm) ||
+            event.location.toLowerCase().includes(searchTerm) ||
+            event.address.toLowerCase().includes(searchTerm) ||
+            event.tags.some((tag) => tag.toLowerCase().includes(searchTerm))
+          );
+        });
+
+        console.log(
+          `🎯 После поиска осталось: ${filteredEvents.length} событий`
+        );
+      }
+
+      // Фильтр по местоположению (клиентский)
+      if (filters?.location) {
+        const locationTerm = filters.location.toLowerCase();
+        console.log(
+          `📍 Клиентский фильтр по местоположению: "${locationTerm}"`
+        );
+
+        filteredEvents = filteredEvents.filter(
+          (event) =>
+            event.location.toLowerCase().includes(locationTerm) ||
+            event.address.toLowerCase().includes(locationTerm)
+        );
+
+        console.log(
+          `📍 После фильтра местоположения: ${filteredEvents.length} событий`
+        );
+      }
+
+      // Клиентская пагинация
+      const totalFiltered = filteredEvents.length;
+      const startIndex = offset;
+      const endIndex = offset + limit;
+      const paginatedEvents = filteredEvents.slice(startIndex, endIndex);
+
+      console.log(
+        `📄 Пагинация: показываем ${startIndex}-${endIndex} из ${totalFiltered}`
+      );
+      console.log("✅ Возвращаем результат:", {
+        events: paginatedEvents.length,
+        total: totalFiltered,
+      });
+
       return {
-        events: result.documents as unknown as Event[],
-        total: result.total,
+        events: paginatedEvents,
+        total: totalFiltered,
       };
     } catch (error) {
-      console.error("Ошибка при получении событий:", error);
+      console.error("❌ Ошибка при получении событий:", error);
       throw error;
     }
   },
@@ -631,6 +670,22 @@ export const useEvents = (filters?: EventFilters) => {
       return totalLoaded < lastPage.total ? pages.length : undefined;
     },
     initialPageParam: 0,
+    staleTime: 1000 * 60 * 5, // 5 минут
+  });
+};
+
+export const useEventsSearch = (filters?: EventFilters) => {
+  return useQuery({
+    queryKey: [...eventsKeys.list(filters), "search"],
+    queryFn: () => {
+      // Если нет фильтров поиска - возвращаем пустой результат
+      if (!filters?.search && !filters?.location) {
+        return { events: [], total: 0 };
+      }
+      return eventsApi.getEvents(filters, 100, 0);
+    },
+    staleTime: 1000 * 60 * 2, // 2 минуты
+    gcTime: 1000 * 60 * 5, // 5 минут
   });
 };
 

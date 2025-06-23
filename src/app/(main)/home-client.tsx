@@ -3,11 +3,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { EventCard } from "@/components/events/EventCard";
 import { EventFilters } from "@/components/events/EventFilters";
 import {
   useFeaturedEvents,
   useEvents,
+  useEventsSearch,
   useAddToFavorites,
   useRemoveFromFavorites,
   useUserFavorites,
@@ -49,6 +51,7 @@ function useDebounce(value: string, delay: number) {
 export default function HomePageClient() {
   const { user } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState<EventFiltersType>({});
   const [searchInput, setSearchInput] = useState("");
 
@@ -63,25 +66,87 @@ export default function HomePageClient() {
     }));
   }, [debouncedSearch]);
 
+  // Определяем, используем ли клиентские фильтры
+  const hasClientFilters = Boolean(filters.search || filters.location);
+
   // Запросы
   const { data: featuredEvents, isLoading: featuredLoading } =
     useFeaturedEvents();
-  const {
-    data: eventsData,
-    isLoading: eventsLoading,
-    fetchNextPage,
-    hasNextPage,
-  } = useEvents(filters);
+
+  // Используем разные хуки в зависимости от типа фильтров
+  const infiniteQuery = useEvents(hasClientFilters ? {} : filters);
+  const searchQuery = useEventsSearch(hasClientFilters ? filters : undefined);
+
+  // Выбираем нужный запрос
+  const eventsQuery = hasClientFilters ? searchQuery : infiniteQuery;
+  const eventsLoading = eventsQuery.isLoading;
+
+  // Получаем данные в зависимости от типа запроса
+  const events = hasClientFilters
+    ? searchQuery.data?.events || [] // Простой query: { events: [...], total: number }
+    : infiniteQuery.data?.pages?.flatMap((page) => page.events) || []; // Infinite query: { pages: [...] }
+
+  const totalEvents = hasClientFilters
+    ? searchQuery.data?.total || 0
+    : infiniteQuery.data?.pages?.[0]?.total || 0;
+
+  // Пагинация только для infinite запроса
+  const fetchNextPage = hasClientFilters
+    ? undefined
+    : infiniteQuery.fetchNextPage;
+  const hasNextPage = hasClientFilters ? false : infiniteQuery.hasNextPage;
+
   const { data: userFavorites } = useUserFavorites(user?.$id || "");
 
   // Мутации для избранного
   const addToFavoritesMutation = useAddToFavorites();
   const removeFromFavoritesMutation = useRemoveFromFavorites();
 
-  const events = eventsData?.pages.flatMap((page) => page.events) || [];
   const favoriteEventIds = new Set(
     userFavorites?.map((event) => event.$id) || []
   );
+
+  // Дебаг информация
+  useEffect(() => {
+    console.log("🔍 Изменились фильтры поиска:", {
+      searchInput,
+      debouncedSearch,
+      filters,
+      hasClientFilters,
+      searchQuery: {
+        enabled: hasClientFilters,
+        loading: searchQuery.isLoading,
+        data: searchQuery.data ? "есть" : "нет",
+      },
+      infiniteQuery: {
+        enabled: !hasClientFilters,
+        loading: infiniteQuery.isLoading,
+        pages: infiniteQuery.data?.pages?.length || 0,
+      },
+      eventsCount: events.length,
+      totalEvents,
+    });
+  }, [
+    searchInput,
+    debouncedSearch,
+    filters,
+    hasClientFilters,
+    searchQuery.isLoading,
+    infiniteQuery.isLoading,
+    events.length,
+    totalEvents,
+  ]);
+
+  // Функция для принудительного обновления
+  const forceRefreshSearch = () => {
+    console.log("🔄 Принудительное обновление поиска");
+    queryClient.invalidateQueries({ queryKey: ["events"] });
+    if (hasClientFilters) {
+      searchQuery.refetch();
+    } else {
+      infiniteQuery.refetch();
+    }
+  };
 
   const handleFavoriteToggle = async (eventId: string) => {
     if (!user) {
@@ -193,20 +258,59 @@ export default function HomePageClient() {
                 ))}
               </div>
 
-              {/* Статус поиска */}
-              {searchInput && (
+              {/* Улучшенный статус поиска */}
+              {(searchInput || debouncedSearch) && (
                 <div className="mt-4 text-center">
                   <div className="text-sm text-white/80">
-                    {eventsLoading ? (
+                    {/* Показываем разные состояния */}
+                    {!debouncedSearch && searchInput ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin"></div>
+                        Ввод: "{searchInput}"...
+                      </span>
+                    ) : eventsLoading ? (
                       <span className="flex items-center justify-center gap-2">
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        Поиск...
+                        Поиск "{debouncedSearch}"...
                       </span>
-                    ) : (
-                      `Найдено: ${eventsData?.pages[0]?.total || 0} событий`
-                    )}
+                    ) : debouncedSearch ? (
+                      events.length === 0 ? (
+                        <span className="text-red-200">
+                          "{debouncedSearch}" - ничего не найдено
+                          <button
+                            onClick={() => setSearchInput("")}
+                            className="ml-2 text-xs underline hover:no-underline"
+                          >
+                            Очистить
+                          </button>
+                        </span>
+                      ) : (
+                        <span className="text-green-200">
+                          "{debouncedSearch}" - найдено {totalEvents} событий
+                        </span>
+                      )
+                    ) : null}
                   </div>
+
+                  {/* Дополнительная дебаг информация в development режиме */}
+                  {process.env.NODE_ENV === "development" && (
+                    <div className="mt-2 text-xs text-white/60 font-mono">
+                      Debug: input="{searchInput}" | debounced="
+                      {debouncedSearch}" | loading={String(eventsLoading)} |
+                      results={events.length}
+                    </div>
+                  )}
                 </div>
+              )}
+
+              {/* Кнопка принудительного обновления (только в development) */}
+              {process.env.NODE_ENV === "development" && (
+                <button
+                  onClick={forceRefreshSearch}
+                  className="mt-2 px-3 py-1 bg-white/20 text-white text-xs rounded hover:bg-white/30 transition-colors"
+                >
+                  🔄 Принудительно обновить
+                </button>
               )}
             </div>
           </div>
@@ -303,7 +407,7 @@ export default function HomePageClient() {
                 {hasActiveFilters ? "Результаты поиска" : "Все события"}
               </h2>
               <div className="text-sm text-gray-500">
-                Найдено: {eventsData?.pages[0]?.total || 0}
+                Найдено: {totalEvents}
               </div>
             </div>
 
@@ -334,10 +438,10 @@ export default function HomePageClient() {
                   ))}
                 </div>
 
-                {hasNextPage && (
+                {!hasClientFilters && hasNextPage && (
                   <div className="text-center pt-8">
                     <button
-                      onClick={() => fetchNextPage()}
+                      onClick={() => fetchNextPage?.()}
                       className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                     >
                       Загрузить еще события
@@ -387,6 +491,67 @@ export default function HomePageClient() {
             </Link>
           </section>
         ) : null}
+
+        {/* ДЕБАГ: Показываем информацию о событиях (только в development) */}
+        {process.env.NODE_ENV === "development" && (
+          <section className="mt-12 bg-gray-100 p-6 rounded-lg">
+            <h3 className="text-lg font-bold mb-4">🐛 Дебаг информация:</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <strong>Поиск:</strong>
+                <ul className="ml-4 mt-1">
+                  <li>• Ввод: "{searchInput}"</li>
+                  <li>• Debounced: "{debouncedSearch}"</li>
+                  <li>• Фильтры: {JSON.stringify(filters, null, 2)}</li>
+                  <li>• Клиентские фильтры: {String(hasClientFilters)}</li>
+                </ul>
+              </div>
+              <div>
+                <strong>События:</strong>
+                <ul className="ml-4 mt-1">
+                  <li>• Загрузка: {String(eventsLoading)}</li>
+                  <li>• Найдено: {events.length}</li>
+                  <li>• Всего: {totalEvents}</li>
+                  <li>
+                    • Тип запроса: {hasClientFilters ? "поиск" : "infinite"}
+                  </li>
+                  <li>• Search query enabled: {String(hasClientFilters)}</li>
+                  <li>• Infinite query enabled: {String(!hasClientFilters)}</li>
+                </ul>
+              </div>
+            </div>
+
+            {events.length > 0 && (
+              <div className="mt-4">
+                <strong>Первые 3 события:</strong>
+                <div className="mt-2 space-y-2">
+                  {events.slice(0, 3).map((event) => (
+                    <div
+                      key={event.$id}
+                      className="p-2 bg-white rounded text-xs"
+                    >
+                      <div>
+                        <strong>ID:</strong> {event.$id}
+                      </div>
+                      <div>
+                        <strong>Название:</strong> {event.title}
+                      </div>
+                      <div>
+                        <strong>Статус:</strong> {event.status}
+                      </div>
+                      <div>
+                        <strong>Категория:</strong> {event.category}
+                      </div>
+                      <div>
+                        <strong>Место:</strong> {event.location}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
       </div>
     </>
   );
