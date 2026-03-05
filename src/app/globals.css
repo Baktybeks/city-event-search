@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap");
 @import "tailwindcss";
 
 @theme {
@@ -13,9 +13,6 @@
   --color-indigo-800: #3730a3;
   --color-indigo-900: #312e81;
 }
-
-/* Импорт шрифтов */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap");
 
 html,
 body {
