@@ -4,7 +4,6 @@ import React from "react";
 import {
   EventWithDetails,
   formatPrice,
-  isEventToday,
   isEventUpcoming,
 } from "@/types";
 import {
@@ -17,8 +16,12 @@ import {
   User,
   Eye,
 } from "lucide-react";
-import { format } from "date-fns";
-import { ru } from "date-fns/locale";
+import { useAppTimezone } from "@/contexts/AppTimezoneContext";
+import {
+  formatInTimezone,
+  formatTimeInTimezone,
+  isTodayInTimezone,
+} from "@/utils/dateUtils";
 
 interface EventDetailProps {
   event: EventWithDetails;
@@ -39,16 +42,20 @@ export function EventDetail({
   isFavoriteToggling = false,
   userCanRegister = true,
 }: EventDetailProps) {
-  const eventDate = new Date(event.startDate);
-  const endDate = event.endDate ? new Date(event.endDate) : null;
-  const isToday = isEventToday(event.startDate);
+  const timezone = useAppTimezone();
+  const isToday = isTodayInTimezone(event.startDate, timezone);
   const isUpcoming = isEventUpcoming(event.startDate);
+  const startTimeStr = formatTimeInTimezone(event.startDate, timezone);
+  const startDateTimeStr = formatInTimezone(event.startDate, timezone);
+  const endTimeStr = event.endDate
+    ? formatTimeInTimezone(event.endDate, timezone)
+    : null;
 
   const getDateDisplay = () => {
     if (isToday) {
       return (
         <span className="text-orange-600 font-semibold">
-          Сегодня, {format(eventDate, "HH:mm")}
+          Сегодня, {startTimeStr}
         </span>
       );
     }
@@ -56,14 +63,14 @@ export function EventDetail({
     if (isUpcoming) {
       return (
         <span className="text-blue-600">
-          {format(eventDate, "d MMMM yyyy, HH:mm", { locale: ru })}
+          {startDateTimeStr}
         </span>
       );
     }
 
     return (
       <span className="text-gray-500">
-        {format(eventDate, "d MMMM yyyy, HH:mm", { locale: ru })}
+        {startDateTimeStr}
       </span>
     );
   };
@@ -142,9 +149,9 @@ export function EventDetail({
               <div className="font-medium text-gray-900">Дата и время</div>
               <div className="text-sm">
                 {getDateDisplay()}
-                {endDate && (
+                {endTimeStr && (
                   <div className="text-gray-500">
-                    до {format(endDate, "HH:mm", { locale: ru })}
+                    до {endTimeStr}
                   </div>
                 )}
               </div>

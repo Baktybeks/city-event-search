@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { UserRole } from "@/types";
+import { useAppTimezone, useSetAppTimezone } from "@/contexts/AppTimezoneContext";
+import { getStoredAppTimezone } from "@/utils/dateUtils";
 import {
   Settings,
   Shield,
@@ -25,6 +27,8 @@ import SystemStats from "@/components/admin/SystemStats";
 
 export default function AdminSettingsPage() {
   const { user, isAuthenticated } = useAuth();
+  const appTimezone = useAppTimezone();
+  const setAppTimezone = useSetAppTimezone();
 
   const [generalSettings, setGeneralSettings] = useState({
     siteName: "EventCity",
@@ -58,6 +62,13 @@ export default function AdminSettingsPage() {
 
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    setGeneralSettings((prev) => ({
+      ...prev,
+      timezone: getStoredAppTimezone(),
+    }));
+  }, [appTimezone]);
+
   // Проверка авторизации и прав доступа
   if (!isAuthenticated || !user || user.role !== UserRole.ADMIN) {
     return (
@@ -78,9 +89,10 @@ export default function AdminSettingsPage() {
   const handleSaveSettings = async (section: string) => {
     setIsLoading(true);
     try {
-      // В реальном приложении здесь был бы вызов API
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
+      if (section === "общие") {
+        setAppTimezone(generalSettings.timezone);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
       toast.success(`Настройки ${section} сохранены`, {
         position: "top-right",
         autoClose: 3000,
@@ -251,8 +263,14 @@ export default function AdminSettingsPage() {
                   <option value="Europe/Moscow">Москва (GMT+3)</option>
                   <option value="Asia/Almaty">Алматы (GMT+6)</option>
                   <option value="Asia/Bishkek">Бишкек (GMT+6)</option>
-                  <option value="Europe/Kiev">Киев (GMT+2)</option>
+                  <option value="Asia/Tashkent">Ташкент (GMT+5)</option>
+                  <option value="Europe/Kyiv">Киев (GMT+2)</option>
+                  <option value="Europe/Minsk">Минск (GMT+3)</option>
+                  <option value="UTC">UTC</option>
                 </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Время создания и отображения событий везде в приложении
+                </p>
               </div>
             </div>
 

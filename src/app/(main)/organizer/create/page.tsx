@@ -24,11 +24,14 @@ import {
 } from "lucide-react";
 import { toast } from "react-toastify";
 import { format } from "date-fns";
+import { useAppTimezone } from "@/contexts/AppTimezoneContext";
+import { parseDatetimeLocalInTimezoneToISO } from "@/utils/dateUtils";
 
 export default function CreateEventPage() {
   const { user } = useAuth();
   const router = useRouter();
   const createEventMutation = useCreateEvent();
+  const timezone = useAppTimezone();
 
   const [formData, setFormData] = useState<CreateEventDto>({
     title: "",
@@ -84,8 +87,18 @@ export default function CreateEventPage() {
     }
 
     try {
+      const eventData: CreateEventDto = {
+        ...formData,
+        startDate: parseDatetimeLocalInTimezoneToISO(
+          formData.startDate,
+          timezone
+        ),
+        endDate: formData.endDate
+          ? parseDatetimeLocalInTimezoneToISO(formData.endDate, timezone)
+          : undefined,
+      };
       const event = await createEventMutation.mutateAsync({
-        eventData: formData,
+        eventData,
         organizerId: user.$id,
       });
 

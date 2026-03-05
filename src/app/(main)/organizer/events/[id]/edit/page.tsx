@@ -26,12 +26,18 @@ import {
   Archive,
 } from "lucide-react";
 import { toast } from "react-toastify";
+import { useAppTimezone } from "@/contexts/AppTimezoneContext";
+import {
+  formatISOToDatetimeLocal,
+  parseDatetimeLocalInTimezoneToISO,
+} from "@/utils/dateUtils";
 
 export default function EditEventPage() {
   const { user } = useAuth();
   const router = useRouter();
   const params = useParams();
   const eventId = params.id as string;
+  const timezone = useAppTimezone();
 
   const { data: event, isLoading } = useEvent(eventId, user?.$id);
   const updateEventMutation = useUpdateEvent();
@@ -56,7 +62,7 @@ export default function EditEventPage() {
 
   const [tagInput, setTagInput] = useState("");
 
-  // Заполняем форму данными события
+  // Заполняем форму данными события (время в часовом поясе приложения)
   useEffect(() => {
     if (event) {
       setFormData({
@@ -64,10 +70,10 @@ export default function EditEventPage() {
         description: event.description,
         category: event.category,
         startDate: event.startDate
-          ? new Date(event.startDate).toISOString().slice(0, 16)
+          ? formatISOToDatetimeLocal(event.startDate, timezone)
           : "",
         endDate: event.endDate
-          ? new Date(event.endDate).toISOString().slice(0, 16)
+          ? formatISOToDatetimeLocal(event.endDate, timezone)
           : "",
         location: event.location,
         address: event.address,
@@ -81,7 +87,7 @@ export default function EditEventPage() {
         tags: event.tags || [],
       });
     }
-  }, [event]);
+  }, [event, timezone]);
 
   if (!user) {
     return <div>Загрузка...</div>;
@@ -155,6 +161,13 @@ export default function EditEventPage() {
     try {
       const updateData: UpdateEventDto = {
         ...formData,
+        startDate: parseDatetimeLocalInTimezoneToISO(
+          formData.startDate,
+          timezone
+        ),
+        endDate: formData.endDate
+          ? parseDatetimeLocalInTimezoneToISO(formData.endDate, timezone)
+          : undefined,
         ...(newStatus && { status: newStatus }),
       };
 

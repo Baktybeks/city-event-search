@@ -7,12 +7,15 @@ import {
   getCategoryIcon,
   getCategoryLabel,
   formatPrice,
-  isEventToday,
   isEventUpcoming,
 } from "@/types";
 import { Calendar, MapPin, Users, Heart, Eye, Clock } from "lucide-react";
-import { format } from "date-fns";
-import { ru } from "date-fns/locale";
+import { useAppTimezone } from "@/contexts/AppTimezoneContext";
+import {
+  formatInTimezone,
+  formatTimeInTimezone,
+  isTodayInTimezone,
+} from "@/utils/dateUtils";
 
 interface EventCardProps {
   event: Event;
@@ -31,9 +34,11 @@ export function EventCard({
   variant = "default",
   className = "",
 }: EventCardProps) {
-  const eventDate = new Date(event.startDate);
-  const isToday = isEventToday(event.startDate);
+  const timezone = useAppTimezone();
+  const isToday = isTodayInTimezone(event.startDate, timezone);
   const isUpcoming = isEventUpcoming(event.startDate);
+  const timeStr = formatTimeInTimezone(event.startDate, timezone);
+  const dateTimeStr = formatInTimezone(event.startDate, timezone);
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -45,7 +50,7 @@ export function EventCard({
     if (isToday) {
       return (
         <span className="text-orange-600 font-semibold">
-          Сегодня, {format(eventDate, "HH:mm")}
+          Сегодня, {timeStr}
         </span>
       );
     }
@@ -53,14 +58,14 @@ export function EventCard({
     if (isUpcoming) {
       return (
         <span className="text-blue-600">
-          {format(eventDate, "d MMMM, HH:mm", { locale: ru })}
+          {dateTimeStr}
         </span>
       );
     }
 
     return (
       <span className="text-gray-500">
-        {format(eventDate, "d MMMM, HH:mm", { locale: ru })}
+        {dateTimeStr}
       </span>
     );
   };

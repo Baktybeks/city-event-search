@@ -26,14 +26,18 @@ import {
   ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
-import { format } from "date-fns";
-import { ru } from "date-fns/locale";
 import { CompactEventStatusPortal } from "@/components/events/CompactEventStatusPortal";
+import { useAppTimezone } from "@/contexts/AppTimezoneContext";
+import {
+  formatInTimezone,
+  formatTimeInTimezone,
+} from "@/utils/dateUtils";
 
 type ViewMode = "grid" | "table";
 
 export default function AdminEventsPage() {
   const { user } = useAuth();
+  const timezone = useAppTimezone();
   const [filters, setFilters] = useState<EventFiltersType>({});
   const [viewMode, setViewMode] = useState<ViewMode>("table");
 
@@ -305,14 +309,13 @@ export default function AdminEventsPage() {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm text-gray-900">
-                                {format(
-                                  new Date(event.startDate),
-                                  "d MMM yyyy",
-                                  { locale: ru }
-                                )}
+                                {formatInTimezone(
+                                  event.startDate,
+                                  timezone
+                                ).split(", ")[0]}
                               </div>
                               <div className="text-xs text-gray-500">
-                                {format(new Date(event.startDate), "HH:mm")}
+                                {formatTimeInTimezone(event.startDate, timezone)}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -377,11 +380,7 @@ export default function AdminEventsPage() {
                       <div className="space-y-3 mb-4">
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Calendar className="h-4 w-4" />
-                          {format(
-                            new Date(event.startDate),
-                            "d MMMM yyyy, HH:mm",
-                            { locale: ru }
-                          )}
+                          {formatInTimezone(event.startDate, timezone)}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <MapPin className="h-4 w-4" />

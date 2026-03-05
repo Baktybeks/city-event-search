@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ToastContainer } from "react-toastify";
+import { AppTimezoneProvider } from "@/contexts/AppTimezoneContext";
 import "react-toastify/dist/ReactToastify.css";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -69,7 +70,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <AppTimezoneProvider>
+        {children}
 
       {/* Показываем девтулы только после гидратации и в development */}
       {hasMounted && process.env.NODE_ENV === "development" && (
@@ -93,6 +95,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           // Дополнительные настройки для предотвращения конфликтов
         />
       )}
+      </AppTimezoneProvider>
     </QueryClientProvider>
   );
 }

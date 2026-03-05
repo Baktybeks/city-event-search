@@ -26,16 +26,19 @@ import {
   CheckCircle,
   X,
 } from "lucide-react";
-import { format } from "date-fns";
-import { ru } from "date-fns/locale";
 import {
   getCategoryIcon,
   getCategoryLabel,
   formatPrice,
-  isEventToday,
   isEventUpcoming,
   isEventPast,
 } from "@/types";
+import { useAppTimezone } from "@/contexts/AppTimezoneContext";
+import {
+  formatInTimezone,
+  formatTimeInTimezone,
+  isTodayInTimezone,
+} from "@/utils/dateUtils";
 import { toast } from "react-toastify";
 
 export default function EventDetailPage() {
@@ -194,11 +197,15 @@ export default function EventDetailPage() {
     );
   }
 
-  const eventDate = new Date(event.startDate);
-  const endDate = event.endDate ? new Date(event.endDate) : null;
+  const timezone = useAppTimezone();
   const isPast = isEventPast(event.endDate || event.startDate, event.startDate);
-  const isToday = isEventToday(event.startDate);
+  const isToday = isTodayInTimezone(event.startDate, timezone);
   const isUpcoming = isEventUpcoming(event.startDate);
+  const startDateStr = formatInTimezone(event.startDate, timezone);
+  const startTimeStr = formatTimeInTimezone(event.startDate, timezone);
+  const endTimeStr = event.endDate
+    ? formatTimeInTimezone(event.endDate, timezone)
+    : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -333,12 +340,11 @@ export default function EventDetailPage() {
                     <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
                     <div>
                       <div className="font-medium text-gray-900">
-                        {format(eventDate, "d MMMM yyyy", { locale: ru })}
+                        {startDateStr.split(", ")[0]}
                       </div>
                       <div className="text-sm text-gray-600">
-                        {format(eventDate, "HH:mm", { locale: ru })}
-                        {endDate &&
-                          ` - ${format(endDate, "HH:mm", { locale: ru })}`}
+                        {startTimeStr}
+                        {endTimeStr && ` - ${endTimeStr}`}
                       </div>
                     </div>
                   </div>

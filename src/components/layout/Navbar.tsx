@@ -17,6 +17,7 @@ import {
   Plus,
   Home,
   Users,
+  SlidersHorizontal,
 } from "lucide-react";
 
 export function Navbar() {
@@ -54,6 +55,11 @@ export function Navbar() {
       name: "Админ-панель",
       href: "/admin",
       icon: Settings,
+    });
+    userNavigation.unshift({
+      name: "Настройки",
+      href: "/admin/settings",
+      icon: SlidersHorizontal,
     });
     userNavigation.unshift({
       name: "Пользователи",
