@@ -31,6 +31,19 @@ function isNetworkError(err: unknown): boolean {
   );
 }
 
+/** Убирает пустые URL-поля: Appwrite не принимает пустую строку для атрибута типа url. */
+function sanitizeEventPayload<T extends Record<string, unknown>>(data: T): T {
+  const out = { ...data };
+  const urlKeys = ["registrationUrl", "ticketUrl", "imageUrl"] as const;
+  for (const key of urlKeys) {
+    if (key in out) {
+      const v = out[key];
+      if (v === "" || v == null) delete out[key];
+    }
+  }
+  return out as T;
+}
+
 export const eventsApi = {
   // Получение всех событий с фильтрацией
   // Замените функцию getEvents в src/services/eventsService.ts
@@ -284,7 +297,7 @@ export const eventsApi = {
     organizerId: string
   ): Promise<Event> => {
     try {
-      const newEvent = {
+      const payload = sanitizeEventPayload({
         ...eventData,
         organizer: organizerId,
         status: EventStatus.DRAFT,
@@ -292,13 +305,13 @@ export const eventsApi = {
         likes: 0,
         featured: false,
         createdAt: new Date().toISOString(),
-      };
+      });
 
       const result = await databases.createDocument(
         DATABASE_ID,
         collections.events,
         ID.unique(),
-        newEvent
+        payload
       );
 
       return result as unknown as Event;
@@ -314,11 +327,12 @@ export const eventsApi = {
     updates: UpdateEventDto
   ): Promise<Event> => {
     try {
+      const payload = sanitizeEventPayload(updates as Record<string, unknown>);
       const result = await databases.updateDocument(
         DATABASE_ID,
         collections.events,
         eventId,
-        updates
+        payload
       );
 
       return result as unknown as Event;
